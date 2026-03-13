@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth:*)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/sdk@v0.5.1 2>&1)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/gin-gonic/gin github.com/spf13/cobra github.com/charmbracelet/bubbletea github.com/charmbracelet/lipgloss github.com/charmbracelet/bubbles github.com/prometheus/client_golang golang.org/x/time/rate modernc.org/sqlite)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/utils/logger github.com/hdget/utils/panic)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go mod tidy && go build ./...)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go build ./...)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest)",
+      "Bash(sqlc generate:*)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go build -o prism .)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/sdk/providers/db/sqlite)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/sdk/providers/db/sqlite/sqlc)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/sdk/providers/db/sqlite/sqlc@v0.0.2)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go list -m -versions github.com/hdget/sdk/providers/db/sqlite/sqlc 2>/dev/null || echo \"Package not found, checking alternatives...\")",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && go get github.com/hdget/sdk@v0.5.1 github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.2)",
+      "Bash(./prism --help)",
+      "Bash(./prism version:*)",
+      "Bash(export GOPROXY=https://goproxy.cn,direct && make build && ./prism --help)",
+      "Bash(make generate:*)",
+      "Read(//home/ryan/go/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//usr/bin/**)",
+      "Bash(cd /mnt/d/codes/github/rfancn/prism/assets && ~/go/bin/sqlc generate)",
+      "Bash(./prism tui:*)"
+    ]
+  }
+}
