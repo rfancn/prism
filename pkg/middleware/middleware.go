@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hdget/sdk"
 )
 
 // Middleware names
@@ -13,7 +12,6 @@ const (
 	NameLogger    = "logger"
 	NameWhitelist = "whitelist"
 	NameAuth      = "auth"
-	NameRateLimit = "ratelimit"
 	NameProxy     = "proxy"
 )
 
@@ -36,33 +34,11 @@ func Get(name string) (gin.HandlerFunc, error) {
 	return fn()
 }
 
-// Config holds middleware configuration.
-type Config struct {
-	// Rate limiting defaults
-	DefaultRPS   int
-	DefaultBurst int
-}
-
 // Initialize registers all middlewares and sets up global state.
 // This should be called once at application startup.
-func Initialize(cfg *Config) {
+func Initialize() {
 	// Register all middlewares
 	Register(NameLogger, NewLoggerMiddleware)
 	Register(NameWhitelist, NewWhitelistMiddleware)
 	Register(NameAuth, NewAuthMiddleware)
-	Register(NameRateLimit, NewRateLimitMiddleware)
-
-	// Initialize rate limiter with default values
-	if cfg != nil {
-		rateLimiter := NewRateLimiter(cfg.DefaultRPS, cfg.DefaultBurst)
-		SetGlobalRateLimiter(rateLimiter)
-		sdk.Logger().Debug("rate limiter initialized",
-			"rps", cfg.DefaultRPS,
-			"burst", cfg.DefaultBurst,
-		)
-	} else {
-		// Use default values
-		rateLimiter := NewRateLimiter(100, 200)
-		SetGlobalRateLimiter(rateLimiter)
-	}
 }

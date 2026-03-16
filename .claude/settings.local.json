@@ -23,7 +23,9 @@
       "Read(//usr/local/bin/**)",
       "Read(//usr/bin/**)",
       "Bash(cd /mnt/d/codes/github/rfancn/prism/assets && ~/go/bin/sqlc generate)",
-      "Bash(./prism tui:*)"
+      "Bash(./prism tui:*)",
+      "mcp__serena__list_dir",
+      "mcp__serena__get_symbols_overview"
     ]
   }
 }

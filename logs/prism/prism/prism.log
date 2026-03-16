@@ -1,0 +1,14 @@
+{"level":"debug","caller":"/home/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T12:03:48+08:00","message":"init sqlite3 provider"}
+{"level":"error","caller":"/mnt/d/codes/github/rfancn/prism/cmd/tui.go:45","error":"could not open a new TTY: open /dev/tty: no such device or address","time":"2026-03-16T12:03:49+08:00","message":"TUI错误"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T12:17:19+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T12:22:09+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:04:08+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:04:26+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:05:07+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:10:04+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:10:22+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:17:30+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:28:47+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T13:34:23+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T15:59:19+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T16:58:48+08:00","message":"init sqlite3 provider"}

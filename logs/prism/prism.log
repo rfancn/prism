@@ -1,3 +1,8 @@
 {"level":"debug","caller":"d:/codes/github/hdget/sdk/providers/db/sqlite3/sqlc/provider.go:23","db":"prism.db","time":"2026-03-13T13:52:33+08:00","message":"init sqlite3 provider"}
 {"level":"info","caller":"D:/codes/github/rfancn/prism/cmd/run.go:59","address":"0.0.0.0:8080","time":"2026-03-13T13:52:33+08:00","message":"启动Prism代理服务..."}
 {"level":"fatal","caller":"D:/codes/github/rfancn/prism/cmd/run.go:66","error":"failed to get logger middleware: middleware not found: logger","time":"2026-03-13T13:52:33+08:00","message":"创建服务器失败"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T10:02:20+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T10:27:47+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T10:28:03+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T10:30:00+08:00","message":"init sqlite3 provider"}
+{"level":"debug","caller":"C:/Users/ryan/go/pkg/mod/github.com/hdget/sdk/providers/db/sqlite3/sqlc@v0.0.3/provider.go:23","db":"prism.db","time":"2026-03-16T11:38:28+08:00","message":"init sqlite3 provider"}

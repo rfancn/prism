@@ -156,8 +156,10 @@ func (m *WhitelistModel) View() string {
 				EmptyListMessage("暂无白名单条目，按 'n' 添加") + "\n\n" +
 				Help("n 新建", "d 删除", "space 切换状态")
 		}
-		return m.list.View() + "\n\n" +
-			Help("n 新建", "d 删除", "space 切换状态")
+		// 使用自定义渲染，避免 list 组件的 ANSI 转义序列影响 tab bar
+		items := m.list.Items()
+		return RenderSimpleList(items, m.list.Index(), m.height-3) +
+			"\n" + Help("n 新建", "d 删除", "space 切换状态")
 
 	case StateForm:
 		if m.form != nil {

@@ -26,20 +26,19 @@ const gracefulShutdownTime = 15 * time.Second
 
 // WebServer implements the Server interface using Gin.
 type WebServer struct {
-	engine     *gin.Engine
-	httpServer *http.Server
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         *sync.WaitGroup
+	engine      *gin.Engine
+	httpServer  *http.Server
+	httpsServer *http.Server
+	tlsConfig   *types.ServerTLSConfig
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          *sync.WaitGroup
 }
 
 // New creates a new web server.
-func New(address string) (Server, error) {
+func New(address string, tlsConfig *types.ServerTLSConfig) (Server, error) {
 	// Initialize middlewares first
-	middleware.Initialize(&middleware.Config{
-		DefaultRPS:   100,
-		DefaultBurst: 200,
-	})
+	middleware.Initialize()
 
 	// Set Gin mode
 	if !g.Debug {
@@ -63,6 +62,24 @@ func New(address string) (Server, error) {
 		wg:     wg,
 	}
 
+	// Setup HTTPS server if TLS is configured
+	if tlsConfig != nil && tlsConfig.Enabled {
+		// Verify certificate files exist
+		if _, err := os.Stat(tlsConfig.CertFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("TLS certificate file not found: %s", tlsConfig.CertFile)
+		}
+		if _, err := os.Stat(tlsConfig.KeyFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("TLS key file not found: %s", tlsConfig.KeyFile)
+		}
+
+		srv.tlsConfig = tlsConfig
+		srv.httpsServer = &http.Server{
+			Addr:    address,
+			Handler: engine,
+		}
+		sdk.Logger().Info("TLS server configured", "cert", tlsConfig.CertFile, "key", tlsConfig.KeyFile)
+	}
+
 	// Setup routes
 	if err := srv.setupRoutes(); err != nil {
 		return nil, err
@@ -80,7 +97,6 @@ func (s *WebServer) setupRoutes() error {
 	}
 
 	authMdw, _ := middleware.Get(middleware.NameAuth)
-	ratelimitMdw, _ := middleware.Get(middleware.NameRateLimit)
 
 	// Apply global middlewares
 	s.engine.Use(gin.Recovery())
@@ -94,13 +110,10 @@ func (s *WebServer) setupRoutes() error {
 	// Create proxy handler
 	proxyHandler := proxy.NewProxyHandler(&types.TargetTLSConfig{})
 
-	// Create route group with auth and rate limit middleware
+	// Create route group with auth middleware
 	apiGroup := s.engine.Group("")
 	if authMdw != nil {
 		apiGroup.Use(authMdw)
-	}
-	if ratelimitMdw != nil {
-		apiGroup.Use(ratelimitMdw)
 	}
 
 	// Load routes from database and register with Gin
@@ -148,6 +161,11 @@ func (s *WebServer) Run() {
 
 	go s.Start()
 
+	// Start HTTPS server if configured
+	if s.httpsServer != nil {
+		go s.StartTLS()
+	}
+
 	for receivedSignal := range chanSignal {
 		sdk.Logger().Debug("received signal", "signal", receivedSignal.String())
 		switch receivedSignal {
@@ -170,10 +188,28 @@ func (s *WebServer) Start() {
 	s.wg.Add(1)
 	defer s.wg.Done()
 
-	sdk.Logger().Info("starting server", "address", s.httpServer.Addr)
+	sdk.Logger().Info("starting HTTP server", "address", s.httpServer.Addr)
 
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		sdk.Logger().Fatal("server error", "err", err)
+		sdk.Logger().Fatal("HTTP server error", "err", err)
+	}
+}
+
+// StartTLS starts the HTTPS server in a goroutine.
+func (s *WebServer) StartTLS() {
+	defer func() {
+		if r := recover(); r != nil {
+			panicUtils.RecordErrorStack(g.App)
+		}
+	}()
+
+	s.wg.Add(1)
+	defer s.wg.Done()
+
+	sdk.Logger().Info("starting HTTPS server", "address", s.httpsServer.Addr)
+
+	if err := s.httpsServer.ListenAndServeTLS(s.tlsConfig.CertFile, s.tlsConfig.KeyFile); err != nil && err != http.ErrServerClosed {
+		sdk.Logger().Fatal("HTTPS server error", "err", err)
 	}
 }
 
@@ -187,7 +223,14 @@ func (s *WebServer) Stop() {
 	defer cancel()
 
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		sdk.Logger().Error("server shutdown error", "err", err)
+		sdk.Logger().Error("HTTP server shutdown error", "err", err)
+	}
+
+	// Shutdown HTTPS server if configured
+	if s.httpsServer != nil {
+		if err := s.httpsServer.Shutdown(ctx); err != nil {
+			sdk.Logger().Error("HTTPS server shutdown error", "err", err)
+		}
 	}
 
 	// Wait for goroutines

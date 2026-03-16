@@ -16,7 +16,13 @@ func TabBar(tabs []string, activeIndex int) string {
 			renderedTabs = append(renderedTabs, styleTab.Render(tab))
 		}
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
+
+	tabsRow := strings.Join(renderedTabs, "  ")
+
+	// 底部分隔线
+	divider := styleTabDivider.Render(strings.Repeat("─", 50))
+
+	return tabsRow + "\n" + divider
 }
 
 // Title renders a title

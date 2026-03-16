@@ -11,26 +11,20 @@ import (
 type Querier interface {
 	CreateAPIKey(ctx context.Context, arg *CreateAPIKeyParams) (*ApiKey, error)
 	CreateHeader(ctx context.Context, arg *CreateHeaderParams) (*Header, error)
-	CreateRateLimit(ctx context.Context, arg *CreateRateLimitParams) (*RateLimit, error)
 	CreateRoute(ctx context.Context, arg *CreateRouteParams) (*Route, error)
 	CreateWhitelistEntry(ctx context.Context, arg *CreateWhitelistEntryParams) (*IpWhitelist, error)
 	DeleteAPIKey(ctx context.Context, id string) error
 	DeleteHeader(ctx context.Context, id int64) error
 	DeleteHeadersByRouteID(ctx context.Context, routeID string) error
-	DeleteRateLimit(ctx context.Context, userID string) error
 	DeleteRoute(ctx context.Context, id string) error
 	DeleteWhitelistEntry(ctx context.Context, id string) error
 	// API key queries
 	GetAPIKey(ctx context.Context, id string) (*ApiKey, error)
 	GetAPIKeyByKey(ctx context.Context, key string) (*ApiKey, error)
 	GetAPIKeyByKeyEnabled(ctx context.Context, key string) (*ApiKey, error)
-	GetDefaultRateLimit(ctx context.Context) (*DefaultRateLimit, error)
 	// Header queries
 	GetHeader(ctx context.Context, id int64) (*Header, error)
 	GetHeadersByRouteID(ctx context.Context, routeID string) ([]*Header, error)
-	// Rate limit queries
-	GetRateLimit(ctx context.Context, id int64) (*RateLimit, error)
-	GetRateLimitByUserID(ctx context.Context, userID string) (*RateLimit, error)
 	// Route queries
 	GetRoute(ctx context.Context, id string) (*Route, error)
 	GetRouteByIdentifier(ctx context.Context, identifier string) (*Route, error)
@@ -42,16 +36,13 @@ type Querier interface {
 	ListAPIKeys(ctx context.Context) ([]*ApiKey, error)
 	ListEnabledRoutes(ctx context.Context) ([]*Route, error)
 	ListEnabledWhitelist(ctx context.Context) ([]*IpWhitelist, error)
-	ListRateLimits(ctx context.Context) ([]*RateLimit, error)
 	ListRoutes(ctx context.Context) ([]*Route, error)
 	ListWhitelist(ctx context.Context) ([]*IpWhitelist, error)
 	UpdateAPIKey(ctx context.Context, arg *UpdateAPIKeyParams) (*ApiKey, error)
 	UpdateAPIKeyLastUsed(ctx context.Context, id string) error
 	UpdateHeader(ctx context.Context, arg *UpdateHeaderParams) (*Header, error)
-	UpdateRateLimit(ctx context.Context, arg *UpdateRateLimitParams) (*RateLimit, error)
 	UpdateRoute(ctx context.Context, arg *UpdateRouteParams) (*Route, error)
 	UpdateWhitelistEntry(ctx context.Context, arg *UpdateWhitelistEntryParams) (*IpWhitelist, error)
-	UpsertDefaultRateLimit(ctx context.Context, arg *UpsertDefaultRateLimitParams) error
 	UpsertTLSConfig(ctx context.Context, arg *UpsertTLSConfigParams) error
 }
 

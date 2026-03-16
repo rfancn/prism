@@ -10,23 +10,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Define colors
+// Define colors - 柔和现代配色方案
 var (
-	// Colors
-	colorPrimary   = lipgloss.Color("#7D56F4")
-	colorSecondary = lipgloss.Color("#3C3C3C")
-	colorAccent    = lipgloss.Color("#04B575")
-	colorError     = lipgloss.Color("#FF5F87")
-	colorWarning   = lipgloss.Color("#FFC857")
-	colorText      = lipgloss.Color("#FAFAFA")
-	colorMuted     = lipgloss.Color("#626262")
+	// 基础颜色
+	colorPrimary = lipgloss.Color("#7D56F4") // 紫色
+	colorAccent  = lipgloss.Color("#10B981") // 绿色
+	colorError   = lipgloss.Color("#FF6B8A") // 红色
+	colorText    = lipgloss.Color("#FAFAFA") // 主文字颜色
+	colorMuted   = lipgloss.Color("#6B7280") // 灰色文字
+	colorBorder  = lipgloss.Color("#3C3C3C") // 边框颜色
 
-	// Styles
+	// 标题样式
 	styleTitle = lipgloss.NewStyle().
 			Foreground(colorPrimary).
 			Bold(true).
 			Padding(0, 1)
 
+	// Tab 样式 - 简洁风格
 	styleTab = lipgloss.NewStyle().
 			Padding(0, 2).
 			Foreground(colorMuted)
@@ -37,11 +37,16 @@ var (
 			Background(colorPrimary).
 			Bold(true)
 
+	// Tab 底部分隔线样式
+	styleTabDivider = lipgloss.NewStyle().
+				Foreground(colorPrimary)
+
 	styleHeader = lipgloss.NewStyle().
 			Foreground(colorPrimary).
 			Bold(true).
 			MarginBottom(1)
 
+	// 列表项样式
 	styleItem = lipgloss.NewStyle().
 			PaddingLeft(2)
 
@@ -54,6 +59,7 @@ var (
 			Foreground(colorMuted).
 			MarginTop(1)
 
+	// 状态样式
 	styleError = lipgloss.NewStyle().
 			Foreground(colorError).
 			Bold(true)
@@ -62,9 +68,10 @@ var (
 			Foreground(colorAccent).
 			Bold(true)
 
+	// 输入框样式
 	styleInput = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(colorSecondary).
+			BorderForeground(colorBorder).
 			Padding(0, 1).
 			Width(50)
 
@@ -74,37 +81,118 @@ var (
 				Padding(0, 1).
 				Width(50)
 
-	styleButton = lipgloss.NewStyle().
-			Padding(0, 3).
-			Foreground(colorText).
-			Background(colorPrimary)
-
-	styleButtonActive = lipgloss.NewStyle().
-				Padding(0, 3).
-				Foreground(colorText).
-				Background(colorAccent).
-				Bold(true)
-
+	// 对话框样式
 	styleDialog = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.NormalBorder()).
 			BorderForeground(colorPrimary).
 			Padding(1, 2)
 
 	styleDialogError = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
+				Border(lipgloss.NormalBorder()).
 				BorderForeground(colorError).
 				Padding(1, 2)
+
+	// Choice Box 样式
+	styleChoiceBox = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(colorBorder).
+			Padding(0, 1).
+			Width(55)
+
+	styleChoiceBoxFocus = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colorPrimary).
+				Padding(0, 1).
+				Width(55)
+
+	styleChoiceOption = lipgloss.NewStyle().
+				Foreground(colorMuted)
+
+	styleChoiceOptionSelected = lipgloss.NewStyle().
+					Foreground(colorAccent).
+					Bold(true)
+
+	// Select 下拉列表样式
+	styleSelectBox = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(colorBorder).
+			Padding(0, 1).
+			Width(12)
+
+	styleSelectBoxFocus = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colorPrimary).
+				Padding(0, 1).
+				Width(12)
+
+	styleSelectExpanded = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colorPrimary).
+				Padding(0, 1)
+
+	styleSelectOption = lipgloss.NewStyle().
+				Foreground(colorMuted)
+
+	styleSelectOptionSelected = lipgloss.NewStyle().
+					Foreground(colorAccent).
+					Bold(true)
+
+	// 列表描述样式
+	styleCardDesc = lipgloss.NewStyle().
+			Foreground(colorMuted)
+
+	// 状态徽章样式
+	styleBadgeEnabled = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#10B981"))
+
+	styleBadgeDisabled = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FF6B8A"))
+
+	// 空状态样式
+	styleEmptyState = lipgloss.NewStyle().
+				Foreground(colorMuted).
+				Italic(true)
+
+	// 表单样式
+	styleFormTitle = lipgloss.NewStyle().
+			Foreground(colorPrimary).
+			Bold(true).
+			MarginBottom(1)
+
+	styleFormDivider = lipgloss.NewStyle().
+				Foreground(colorBorder)
+
+	// 字段标签样式
+	styleFieldLabel = lipgloss.NewStyle().
+			Foreground(colorText).
+			Bold(true)
+
+	styleFieldLabelFocused = lipgloss.NewStyle().
+				Foreground(colorPrimary).
+				Bold(true)
+
+	styleFieldRequired = lipgloss.NewStyle().
+				Foreground(colorError).
+				Bold(true)
+
+	// 聚焦状态的高亮条
+	styleFocusBar = lipgloss.NewStyle().
+			Foreground(colorPrimary).
+			Bold(true)
+
+	// 帮助提示样式
+	styleFormHelp = lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Padding(0, 1).
+			MarginTop(1)
 )
 
 // Tab names
 const (
-	TabRoutes     = "路由"
-	TabHeaders    = "Headers"
-	TabWhitelist  = "白名单"
-	TabAPIKeys    = "API Keys"
-	TabRateLimit  = "限流"
-	TabTLS        = "TLS"
-	TabStats      = "统计"
+	TabRoutes    = "路由"
+	TabWhitelist = "白名单"
+	TabAPIKeys   = "API Keys"
+	TabTLS       = "TLS"
 )
 
 // MenuItem represents a menu item

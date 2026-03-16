@@ -8,12 +8,15 @@ import (
 	"github.com/hdget/utils/logger"
 	"github.com/rfancn/prism/g"
 	"github.com/rfancn/prism/pkg/server"
+	"github.com/rfancn/prism/pkg/types"
 	"github.com/spf13/cobra"
 )
 
 var (
 	argConfigFile string
 	argAddress    string
+	argCertFile   string
+	argKeyFile    string
 
 	cmdRun = &cobra.Command{
 		Use:   "run",
@@ -39,6 +42,8 @@ var (
 func init() {
 	cmdRun.Flags().StringVarP(&argConfigFile, "config", "c", "prism.toml", "配置文件路径")
 	cmdRun.Flags().StringVarP(&argAddress, "address", "a", "", "服务监听地址")
+	cmdRun.Flags().StringVar(&argCertFile, "cert", "", "SSL 证书文件路径")
+	cmdRun.Flags().StringVar(&argKeyFile, "key", "", "SSL 私钥文件路径")
 }
 
 func runServer() {
@@ -56,12 +61,22 @@ func runServer() {
 		)
 	}
 
+	// Build TLS config if certificate files are provided
+	var tlsConfig *types.ServerTLSConfig
+	if argCertFile != "" && argKeyFile != "" {
+		tlsConfig = &types.ServerTLSConfig{
+			Enabled:  true,
+			CertFile: argCertFile,
+			KeyFile:  argKeyFile,
+		}
+	}
+
 	sdk.Logger().Info("启动Prism代理服务...",
 		"address", address,
 	)
 
 	// Create and run server
-	srv, err := server.New(address)
+	srv, err := server.New(address, tlsConfig)
 	if err != nil {
 		sdk.Logger().Fatal("创建服务器失败", "err", err)
 	}

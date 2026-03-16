@@ -9,25 +9,22 @@ Prism is an HTTP/HTTPS request relay tool written in Go. It supports transparent
 ## Build & Development Commands
 
 ```bash
-# Build the binary
+# Build the binary with version info
 go build -o prism .
 # or
 make build
 
-# Run tests
+# Run tests (all packages)
 go test ./...
-# or
-make test
+
+# Run tests with verbose output
+go test -v ./...
 
 # Generate sqlc code (after modifying SQL schema/queries)
 go generate ./...
-# or
-make generate
 
 # Run linter
 go vet ./...
-# or
-make lint
 
 # Run the service
 ./prism run -c prism.toml
@@ -36,14 +33,20 @@ make lint
 ./prism tui
 ```
 
+**Note**: 在国内网络环境下，需要设置 Go 代理：
+```bash
+export GOPROXY=https://goproxy.cn,direct
+```
+
 ## Key Dependencies
 
-- **SDK**: `github.com/hdget/sdk v0.5.1` - provides Logger and DB access
-- **HTTP Framework**: `github.com/gin-gonic/gin`
+- **SDK**: `github.com/hdget/sdk v0.5.1` - provides Logger and DB access via `sdk.Logger()` and `sdk.Db()`
+- **HTTP Framework**: `github.com/gin-gonic/gin` - HTTP server and routing
 - **Database**: SQLite with sqlc code generation (`github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.2`)
-- **CLI**: `github.com/spf13/cobra`
-- **Monitoring**: `github.com/prometheus/client_golang`
-- **Rate Limiting**: `golang.org/x/time/rate`
+- **CLI**: `github.com/spf13/cobra` - command-line interface
+- **TUI**: `github.com/charmbracelet/bubbletea` - terminal UI framework
+- **Monitoring**: `github.com/prometheus/client_golang` - metrics exposition
+- **Rate Limiting**: `golang.org/x/time/rate` - token bucket algorithm
 
 ## Architecture
 
@@ -65,12 +68,12 @@ make lint
 │                     │   4. Rate Limit     │                      │
 │                     └──────────┬──────────┘                      │
 │                                │                                 │
-│            ┌───────────────────┼───────────────────┐             │
-│            │                   │                   │             │
-│      c.Param()          c.Query()          JSON Body            │
-│      (path params)      (URL params)       (nested fields)      │
-│            │                   │                   │             │
-│            └───────────────────┼───────────────────┘             │
+│                  ┌─────────────┴─────────────┐                   │
+│                  │                           │                   │
+│            c.Param()                   c.Query()                 │
+│            (path params)               (URL params)             │
+│                  │                           │                   │
+│                  └─────────────┬─────────────┘                   │
 │                                │                                 │
 │                     Header Inject + Reverse Proxy                │
 │                                │                                 │
@@ -81,17 +84,17 @@ make lint
 
 ### Directory Structure
 
-- `cmd/` - Cobra CLI commands (`run`, `tui`, `route`, `apikey`, `version`)
-- `g/` - Global configuration structures and constants
+- `cmd/` - Cobra CLI commands (`run`, `tui`, `route`, `apikey`, `version`, `migrations`)
+- `g/` - Global configuration structures (`g.Config`) and constants
 - `pkg/` - Core packages:
   - `middleware/` - Gin middleware (registration pattern with `Register()`/`Get()`)
-  - `parser/` - JSON body identifier extraction (nested field support)
   - `proxy/` - Reverse proxy with director-based request rewriting
   - `server/` - Gin HTTP server setup and route registration
   - `monitor/` - Prometheus metrics and health endpoints
-  - `types/` - Shared types across packages
+  - `types/` - Shared types across packages (TLS config)
+- `tui/` - Bubble Tea TUI application (models for routes, apikeys, whitelist)
 - `repository/` - Data access layer using `repository.New()` for `db.Queries`
-- `assets/` - SQL schema and queries for sqlc
+- `assets/` - SQL schema (`schema/`) and queries (`queries/`) for sqlc
 - `autogen/db/` - sqlc-generated code (do not edit manually)
 
 ### Configuration Structure
@@ -101,7 +104,17 @@ Config is split into `[sdk]` and `[app]` sections in TOML:
 - `[sdk]` - SDK-level config (logging, database)
 - `[app]` - Application config (server, proxy, routes, rate limiting)
 
-Access via `g.Config` global variable after loading.
+Access via `g.Config` global variable after loading. Config structs use `mapstructure` tags for TOML binding.
+
+### Database Schema
+
+Key tables (see `assets/schema/schema.sql`):
+- `route` - Routing patterns with identifier extraction config
+- `header` - Custom headers per route (cascade delete)
+- `api_key` - API keys with user_id for rate limiting
+- `rate_limit` - Per-user rate limits (requests_per_second, burst)
+- `ip_whitelist` - IP/CIDR whitelist entries
+- `tls_config` - TLS certificates and auto-cert settings
 
 ### Middleware Pattern
 
@@ -125,10 +138,9 @@ routes, err := queries.ListEnabledRoutes(ctx)
 
 ### Identifier Extraction
 
-Three extraction sources supported:
+Two extraction sources supported:
 - **Path**: Uses Gin's built-in `c.Param()` - pattern `/api/{tenant}/users` is converted to `/api/:tenant/users`
 - **URL Param**: Uses Gin's built-in `c.Query()` for query parameter extraction
-- **JSON Body**: Custom parser in `pkg/parser/` supports dot notation for nested fields (e.g., `user.tenant_id`)
 
 ### Route Registration
 
@@ -147,13 +159,14 @@ for _, route := range routes {
 
 SQL schemas are in `assets/schema/`. After modifying:
 
-1. Update schema files in `assets/schema/`
+1. Update schema files in `assets/schema/schema.sql`
 2. Update query files in `assets/queries/`
-3. Run `make generate` to regenerate sqlc code
+3. Run `make generate` or `sqlc generate -f assets/sqlc.yaml` to regenerate code
 
 ## Important Notes
 
 - Use `sdk.Logger()` for logging (not standard log package)
-- Use `sdk.Db()` for database access
+- Use `sdk.Db().My()` for database connection (wrapped by `repository.New()`)
 - Config uses `mapstructure` tags for TOML binding
 - Generated code lives in `autogen/` - never edit manually
+- Pattern conversion: `{tenant}` in config → `:tenant` for Gin routing

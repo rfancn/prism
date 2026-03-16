@@ -7,13 +7,13 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hdget/sdk v0.5.1
-	github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.2
+	github.com/hdget/sdk v0.5.2
+	github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.3
 	github.com/hdget/utils v0.2.3
 	github.com/hdget/utils/panic v0.0.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/time v0.15.0
+	golang.org/x/crypto v0.48.0
 )
 
 require (
@@ -44,7 +44,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hdget/sdk/common v0.0.7 // indirect
+	github.com/hdget/sdk/common v0.0.8 // indirect
 	github.com/hdget/sdk/providers/config/koanf v0.0.7 // indirect
 	github.com/hdget/sdk/providers/logger/zerolog v0.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -94,7 +94,6 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.22.0 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect

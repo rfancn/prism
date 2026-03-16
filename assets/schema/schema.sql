@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS route (
     id TEXT PRIMARY KEY,
     pattern TEXT NOT NULL,                    -- Path pattern, e.g., /api/{tenant}/users
     identifier TEXT NOT NULL,                  -- Field name to extract for routing
-    identifier_source TEXT NOT NULL CHECK (identifier_source IN ('path', 'json_body', 'url_param')),
+    identifier_source TEXT NOT NULL CHECK (identifier_source IN ('path', 'url_param')),
     target_url TEXT NOT NULL,                  -- Target URL to forward to
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -44,23 +44,6 @@ CREATE TABLE IF NOT EXISTS api_key (
     last_used_at DATETIME
 );
 
--- Rate limit table: per-user rate limit configuration
-CREATE TABLE IF NOT EXISTS rate_limit (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL UNIQUE,
-    requests_per_second INTEGER NOT NULL DEFAULT 100,
-    burst INTEGER NOT NULL DEFAULT 200,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Default rate limit configuration
-CREATE TABLE IF NOT EXISTS default_rate_limit (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    requests_per_second INTEGER NOT NULL DEFAULT 100,
-    burst INTEGER NOT NULL DEFAULT 200
-);
-
 -- TLS configuration
 CREATE TABLE IF NOT EXISTS tls_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -81,4 +64,3 @@ CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON ip_whitelist(ip_cidr);
 CREATE INDEX IF NOT EXISTS idx_whitelist_enabled ON ip_whitelist(enabled);
 CREATE INDEX IF NOT EXISTS idx_api_key_key ON api_key(key);
 CREATE INDEX IF NOT EXISTS idx_api_key_enabled ON api_key(enabled);
-CREATE INDEX IF NOT EXISTS idx_rate_limit_user_id ON rate_limit(user_id);

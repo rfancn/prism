@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -14,15 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hdget/sdk"
 	"github.com/rfancn/prism/autogen/db"
-	"github.com/rfancn/prism/pkg/parser"
 	"github.com/rfancn/prism/pkg/types"
 	"github.com/rfancn/prism/repository"
 )
 
 // ProxyHandler handles HTTP request proxying.
 type ProxyHandler struct {
-	jsonParser *parser.JSONBodyParser
-	targetTLS  *types.TargetTLSConfig
+	targetTLS *types.TargetTLSConfig
 }
 
 // NewProxyHandler creates a new proxy handler.
@@ -97,60 +94,14 @@ func (p *ProxyHandler) extractIdentifier(c *gin.Context, route *db.Route) (strin
 		}
 		return value, nil
 
-	case "json_body":
-		// JSON body extraction requires custom parsing
-		return p.extractFromJSONBody(c, route.Identifier)
-
 	default:
 		return "", fmt.Errorf("unknown identifier source: %s", route.IdentifierSource)
 	}
 }
 
-// extractFromJSONBody extracts a field from the JSON request body.
-func (p *ProxyHandler) extractFromJSONBody(c *gin.Context, fieldName string) (string, error) {
-	// Read body
-	bodyBytes, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read body: %w", err)
-	}
-
-	// Restore body for downstream use
-	c.Request.Body = io.NopCloser(NewBufferedReader(bodyBytes))
-
-	// Parse JSON and extract field
-	if p.jsonParser == nil {
-		p.jsonParser = parser.NewJSONBodyParser(fieldName)
-	} else {
-		// Update field name if different
-		p.jsonParser = parser.NewJSONBodyParser(fieldName)
-	}
-
-	return p.jsonParser.Extract(bodyBytes)
-}
-
 // respondError sends an error response.
 func (p *ProxyHandler) respondError(c *gin.Context, code int, message string) {
 	c.JSON(code, gin.H{"error": message})
-}
-
-// BufferedReader is a simple reader that can be reset.
-type BufferedReader struct {
-	data []byte
-	pos  int
-}
-
-// NewBufferedReader creates a new buffered reader.
-func NewBufferedReader(data []byte) *BufferedReader {
-	return &BufferedReader{data: data}
-}
-
-func (r *BufferedReader) Read(p []byte) (n int, err error) {
-	if r.pos >= len(r.data) {
-		return 0, io.EOF
-	}
-	n = copy(p, r.data[r.pos:])
-	r.pos += n
-	return n, nil
 }
 
 // createDirector creates a director function for the reverse proxy.

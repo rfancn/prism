@@ -5,6 +5,8 @@
     [sdk.log]
         # Log level: "trace", "debug", "info", "warn", "error", "fatal", "panic"
         level = "debug"
+        # Log directory
+        dir = "logs/prism"
         # Log file name
         filename = "prism.log"
         # Log rotation configuration
@@ -40,9 +42,3 @@
         protect_prefix = "/api"
         # Public route prefix (no authentication required)
         public_prefix = "/public"
-
-    [app.ratelimit]
-        # Time window size in seconds for rate limiting
-        window_size = 10
-        # Max requests per window
-        limit = 100

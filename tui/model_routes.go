@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rfancn/prism/autogen/db"
 	"github.com/rfancn/prism/repository"
@@ -163,8 +165,10 @@ func (m *RoutesModel) View() string {
 				EmptyListMessage("暂无路由，按 'n' 创建新路由") + "\n\n" +
 				Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
 		}
-		return m.list.View() + "\n\n" +
-			Help("n 新建", "e 编辑", "d 删除", "space 切换状态", "enter 详情")
+		// 使用自定义渲染，避免 list 组件的 ANSI 转义序列影响 tab bar
+		items := m.list.Items()
+		return RenderSimpleList(items, m.list.Index(), m.height-3) +
+			"\n" + Help("n 新建", "e 编辑", "d 删除", "space 切换状态", "enter 详情")
 
 	case StateForm:
 		if m.form != nil {
@@ -185,11 +189,27 @@ func (m *RoutesModel) View() string {
 
 // showCreateForm shows the create form
 func (m *RoutesModel) showCreateForm() {
-	m.form = NewForm("创建路由", []InputField{
-		NewInputField("标识符", "identifier", "例如: tenant1", true),
-		NewInputField("路径模式", "pattern", "例如: /api/{tenant}/users", true),
-		NewInputField("标识来源", "identifier_source", "path/json_body/url_param", true),
-		NewInputField("目标URL", "target_url", "例如: http://backend:8080", true),
+	m.form = NewFormWithFields("创建路由", []FormField{
+		&InputField{
+			Label:    "标识符",
+			Key:      "identifier",
+			Input:    newTextInput("例如: tenant1"),
+			Required: true,
+		},
+		NewChoiceFieldWrapper("标识识别方式", "identifier_source",
+			[]string{"path", "url_param"},
+			[]string{"Path", "URL Param"}),
+		&InputField{
+			Label:    "路径模式",
+			Key:      "pattern",
+			Input:    newTextInput("例如: /api/{tenant}/users"),
+			Required: false,
+		},
+		NewURLField("目标URL", "target_url"),
+	})
+	// 设置路径模式字段的可见性规则：仅在 Path 模式下显示
+	m.form.SetVisibilityRule("pattern", func(f *Form) bool {
+		return f.GetFieldValue("identifier_source") == "path"
 	})
 	m.state = StateForm
 }
@@ -199,17 +219,42 @@ func (m *RoutesModel) showEditForm() {
 	if m.selected == nil {
 		return
 	}
-	m.form = NewForm("编辑路由", []InputField{
-		NewInputField("标识符", "identifier", "", true),
-		NewInputField("路径模式", "pattern", "", true),
-		NewInputField("标识来源", "identifier_source", "path/json_body/url_param", true),
-		NewInputField("目标URL", "target_url", "", true),
+	m.form = NewFormWithFields("编辑路由", []FormField{
+		&InputField{
+			Label:    "标识符",
+			Key:      "identifier",
+			Input:    newTextInput(""),
+			Required: true,
+		},
+		NewChoiceFieldWrapper("标识识别方式", "identifier_source",
+			[]string{"path", "url_param"},
+			[]string{"Path", "URL Param"}),
+		&InputField{
+			Label:    "路径模式",
+			Key:      "pattern",
+			Input:    newTextInput(""),
+			Required: false,
+		},
+		NewURLField("目标URL", "target_url"),
 	})
+	// 设置路径模式字段的可见性规则
+	m.form.SetVisibilityRule("pattern", func(f *Form) bool {
+		return f.GetFieldValue("identifier_source") == "path"
+	})
+	// 设置表单值
 	m.form.SetValue("identifier", m.selected.Identifier)
 	m.form.SetValue("pattern", m.selected.Pattern)
 	m.form.SetValue("identifier_source", m.selected.IdentifierSource)
 	m.form.SetValue("target_url", m.selected.TargetUrl)
 	m.state = StateForm
+}
+
+// newTextInput 创建一个预配置的 textinput
+func newTextInput(placeholder string) textinput.Model {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.Width = 40
+	return ti
 }
 
 // saveRoute saves the route
@@ -305,4 +350,74 @@ func (m *RoutesModel) toggleRoute(route *db.Route) tea.Cmd {
 
 		return tea.Batch(m.loadRoutes(), SendSuccess("状态已切换"))()
 	}
+}
+
+// parseTargetURL 解析目标 URL，返回协议、主机和端口
+// 输入示例: "http://backend:8080" 或 "https://api.example.com"
+// 如果 URL 无效或缺少端口，返回默认值
+func parseTargetURL(urlStr string) (protocol, host, port string) {
+	// 默认值
+	protocol = "http"
+	host = ""
+	port = "80"
+
+	// 处理空字符串
+	if urlStr == "" {
+		return
+	}
+
+	// 解析 URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return
+	}
+
+	// 提取协议 (scheme)
+	if parsedURL.Scheme != "" {
+		protocol = parsedURL.Scheme
+	}
+
+	// 根据协议设置默认端口
+	if protocol == "https" {
+		port = "443"
+	} else {
+		port = "80"
+	}
+
+	// 提取主机名 (去掉端口部分)
+	hostname := parsedURL.Hostname()
+	if hostname != "" {
+		host = hostname
+	}
+
+	// 提取端口 (如果有)
+	if parsedURL.Port() != "" {
+		port = parsedURL.Port()
+	}
+
+	return
+}
+
+// buildTargetURL 构建目标 URL
+// 输入: protocol="http", host="backend", port="8080"
+// 输出: "http://backend:8080"
+func buildTargetURL(protocol, host, port string) string {
+	// 处理默认端口，省略端口号
+	var portPart string
+	switch {
+	case protocol == "http" && port == "80":
+		portPart = ""
+	case protocol == "https" && port == "443":
+		portPart = ""
+	case port != "":
+		portPart = ":" + port
+	default:
+		portPart = ""
+	}
+
+	// 构建完整 URL
+	if portPart != "" {
+		return fmt.Sprintf("%s://%s%s", protocol, host, portPart)
+	}
+	return fmt.Sprintf("%s://%s", protocol, host)
 }

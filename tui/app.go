@@ -14,7 +14,6 @@ const (
 	TabRoutesIndex Tab = iota
 	TabWhitelistIndex
 	TabAPIKeysIndex
-	TabRateLimitIndex
 	TabTLSIndex
 )
 
@@ -54,7 +53,6 @@ func NewApp() *App {
 			TabRoutes,
 			TabWhitelist,
 			TabAPIKeys,
-			TabRateLimit,
 			TabTLS,
 		},
 		activeTab: TabRoutesIndex,
@@ -87,10 +85,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
-		// Update sub-models
-		a.routesModel.SetSize(a.width, a.height-5)
-		a.whitelistModel.SetSize(a.width, a.height-5)
-		a.apikeysModel.SetSize(a.width, a.height-5)
+		// Update sub-models - 留出 tab bar (2行) + footer (2行) 的空间
+		contentHeight := a.height - 4
+		if contentHeight < 5 {
+			contentHeight = 5
+		}
+		a.routesModel.SetSize(a.width, contentHeight)
+		a.whitelistModel.SetSize(a.width, contentHeight)
+		a.apikeysModel.SetSize(a.width, contentHeight)
 
 	case tea.KeyMsg:
 		// Global key handling
@@ -157,8 +159,6 @@ func (a *App) View() string {
 		b.WriteString(a.whitelistModel.View())
 	case TabAPIKeysIndex:
 		b.WriteString(a.apikeysModel.View())
-	case TabRateLimitIndex:
-		b.WriteString(a.rateLimitView())
 	case TabTLSIndex:
 		b.WriteString(a.tlsView())
 	}
@@ -178,16 +178,6 @@ func (a *App) View() string {
 	b.WriteString(Help("←→ 切换标签", "q 退出"))
 
 	return b.String()
-}
-
-func (a *App) rateLimitView() string {
-	return Box("限流配置", `
-默认限流配置:
-  每秒请求数: 100
-  突发容量:   200
-
-按用户配置功能将在后续版本实现。
-`, false)
 }
 
 func (a *App) tlsView() string {

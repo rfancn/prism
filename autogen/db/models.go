@@ -19,12 +19,6 @@ type ApiKey struct {
 	LastUsedAt  sql.NullTime   `json:"last_used_at"`
 }
 
-type DefaultRateLimit struct {
-	ID                int64 `json:"id"`
-	RequestsPerSecond int64 `json:"requests_per_second"`
-	Burst             int64 `json:"burst"`
-}
-
 type Header struct {
 	ID        int64        `json:"id"`
 	RouteID   string       `json:"route_id"`
@@ -39,15 +33,6 @@ type IpWhitelist struct {
 	Description sql.NullString `json:"description"`
 	Enabled     sql.NullInt64  `json:"enabled"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
-}
-
-type RateLimit struct {
-	ID                int64        `json:"id"`
-	UserID            string       `json:"user_id"`
-	RequestsPerSecond int64        `json:"requests_per_second"`
-	Burst             int64        `json:"burst"`
-	CreatedAt         sql.NullTime `json:"created_at"`
-	UpdatedAt         sql.NullTime `json:"updated_at"`
 }
 
 type Route struct {

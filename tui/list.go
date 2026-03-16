@@ -3,10 +3,10 @@ package tui
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // ListDelegate is a custom delegate for list items
@@ -44,9 +44,8 @@ func NewList(items []list.Item, title string, width, height int) list.Model {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
+	l.SetShowTitle(false)
 
-	// Custom styles
-	l.Styles.Title = styleTitle
 	l.Styles.PaginationStyle = styleHelp
 
 	return l
@@ -54,8 +53,60 @@ func NewList(items []list.Item, title string, width, height int) list.Model {
 
 // EmptyListMessage renders an empty list message
 func EmptyListMessage(message string) string {
-	return lipgloss.NewStyle().
-		Foreground(colorMuted).
-		Italic(true).
-		Render("  " + message)
+	return styleEmptyState.Render("  " + message)
+}
+
+// RenderBadge 渲染状态徽章
+func RenderBadge(text string, enabled bool) string {
+	if enabled {
+		return styleBadgeEnabled.Render("● " + text)
+	}
+	return styleBadgeDisabled.Render("○ " + text)
+}
+
+// RenderSimpleList 渲染简单列表
+func RenderSimpleList(items []list.Item, selectedIndex, height int) string {
+	var b strings.Builder
+
+	for i, item := range items {
+		if i >= height {
+			break
+		}
+
+		menuItem, ok := item.(MenuItem)
+		if !ok {
+			continue
+		}
+
+		// 渲染标题行
+		if i == selectedIndex {
+			b.WriteString(styleItemSelected.Render("▶ " + menuItem.Title()))
+		} else {
+			b.WriteString(styleItem.Render("  " + menuItem.Title()))
+		}
+
+		// 渲染描述行
+		if menuItem.Description() != "" {
+			b.WriteString("\n")
+			desc := formatDescription(menuItem.Description())
+			b.WriteString(styleCardDesc.Render("    " + desc))
+		}
+
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// formatDescription 格式化描述信息
+func formatDescription(desc string) string {
+	if strings.Contains(desc, "[启用]") {
+		badge := RenderBadge("启用", true)
+		return strings.Replace(desc, "[启用]", badge, 1)
+	}
+	if strings.Contains(desc, "[禁用]") {
+		badge := RenderBadge("禁用", false)
+		return strings.Replace(desc, "[禁用]", badge, 1)
+	}
+	return desc
 }
