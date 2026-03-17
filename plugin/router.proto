@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package routerplugin;
+
+option go_package = "github.com/rfancn/prism/plugin";
+
+// MatchRequest 包含路由匹配所需的所有请求信息
+message MatchRequest {
+    string method = 1;                          // HTTP方法 (GET, POST, PUT, DELETE等)
+    map<string, string> headers = 2;            // HTTP请求头
+    map<string, string> url_params = 3;         // URL查询参数
+    map<string, string> path_params = 4;        // 路径参数
+    bytes body = 5;                             // 请求体
+    string remote_addr = 6;                     // 客户端地址
+    string path = 7;                            // 请求路径
+}
+
+// MatchResponse 返回匹配结果
+message MatchResponse {
+    bool matched = 1;                           // 是否匹配成功
+    map<string, string> params = 2;             // 提取的参数（可用于后续处理）
+    string error = 3;                           // 错误信息（如果有）
+    string route_id = 4;                        // 匹配的路由ID（可选）
+}
+
+// PluginInfo 插件信息
+message PluginInfo {
+    string name = 1;                            // 插件名称
+    string description = 2;                     // 插件描述
+    string version = 3;                         // 插件版本
+    string author = 4;                          // 作者
+}
+
+// Empty 空消息
+message Empty {}
+
+// RouterPlugin 路由插件服务定义
+service RouterPlugin {
+    // Info 获取插件信息
+    rpc Info(Empty) returns (PluginInfo);
+
+    // Match 执行路由匹配
+    rpc Match(MatchRequest) returns (MatchResponse);
+}

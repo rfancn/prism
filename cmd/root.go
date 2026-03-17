@@ -21,7 +21,6 @@ func init() {
 	rootCmd.AddCommand(cmdRun)
 	rootCmd.AddCommand(cmdTui)
 	rootCmd.AddCommand(cmdRoute)
-	rootCmd.AddCommand(cmdApikey)
 	rootCmd.AddCommand(cmdVersion)
 }
 

@@ -12,16 +12,20 @@ import (
 	"github.com/rfancn/prism/repository"
 )
 
+// 全局配置键名
+const GlobalConfigKeyWhitelistEnabled = "ip_whitelist_enabled"
+
 // WhitelistModel manages the IP whitelist
 type WhitelistModel struct {
-	list     list.Model
-	entries  []*db.IpWhitelist
-	state    AppState
-	form     *Form
-	selected *db.IpWhitelist
-	width    int
-	height   int
-	keys     KeyMap
+	list            list.Model
+	entries         []*db.IpWhitelist
+	state           AppState
+	form            *Form
+	selected        *db.IpWhitelist
+	width           int
+	height          int
+	keys            KeyMap
+	whitelistEnabled bool  // 全局开关状态
 }
 
 // NewWhitelistModel creates a new whitelist model
@@ -53,11 +57,23 @@ func (m *WhitelistModel) loadEntries() tea.Cmd {
 		if queries == nil {
 			return MsgError{Err: fmt.Errorf("queries not initialized")}
 		}
+
+		// 加载白名单条目
 		entries, err := queries.ListWhitelist(context.Background())
 		if err != nil {
 			return MsgError{Err: err}
 		}
 		m.entries = entries
+
+		// 加载全局开关状态
+		config, err := queries.GetGlobalConfig(context.Background(), GlobalConfigKeyWhitelistEnabled)
+		if err == nil {
+			m.whitelistEnabled = (config.Value == "true" || config.Value == "1")
+		} else {
+			// 默认关闭
+			m.whitelistEnabled = false
+		}
+
 		return MsgRefresh{}
 	}
 }
@@ -66,16 +82,9 @@ func (m *WhitelistModel) loadEntries() tea.Cmd {
 func (m *WhitelistModel) refreshList() {
 	items := make([]list.Item, len(m.entries))
 	for i, e := range m.entries {
-		status := "启用"
-		if e.Enabled.Int64 == 0 {
-			status = "禁用"
-		}
 		desc := e.Description.String
-		if desc == "" {
-			desc = "-"
-		}
 		items[i] = MenuItem{
-			title:       fmt.Sprintf("%s [%s]", e.IpCidr, status),
+			title:       e.IpCidr,
 			description: desc,
 		}
 	}
@@ -104,9 +113,7 @@ func (m *WhitelistModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case key.Matches(msg, m.keys.Toggle):
-				if len(m.entries) > 0 && m.list.Index() < len(m.entries) {
-					return m, m.toggleEntry(m.entries[m.list.Index()])
-				}
+				return m, m.toggleGlobalSwitch()
 			}
 
 		case StateForm:
@@ -149,17 +156,25 @@ func (m *WhitelistModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the model
 func (m *WhitelistModel) View() string {
+	// 构建状态指示
+	statusText := "已关闭"
+	if m.whitelistEnabled {
+		statusText = "已启用"
+	}
+	statusLine := fmt.Sprintf("IP白名单功能: %s", statusText)
+
 	switch m.state {
 	case StateList:
+		var content string
 		if len(m.entries) == 0 {
-			return Header("IP 白名单") + "\n\n" +
-				EmptyListMessage("暂无白名单条目，按 'n' 添加") + "\n\n" +
-				Help("n 新建", "d 删除", "space 切换状态")
+			content = EmptyListMessage("暂无白名单条目，按 'n' 添加")
+		} else {
+			// 使用自定义渲染，避免 list 组件的 ANSI 转义序列影响 tab bar
+			items := m.list.Items()
+			content = RenderSimpleList(items, m.list.Index(), m.height-5)
 		}
-		// 使用自定义渲染，避免 list 组件的 ANSI 转义序列影响 tab bar
-		items := m.list.Items()
-		return RenderSimpleList(items, m.list.Index(), m.height-3) +
-			"\n" + Help("n 新建", "d 删除", "space 切换状态")
+		return statusLine + "\n" + content + "\n" +
+			Help("n 新建", "d 删除", "space 切换功能开关")
 
 	case StateForm:
 		if m.form != nil {
@@ -237,27 +252,33 @@ func (m *WhitelistModel) deleteEntry() tea.Cmd {
 	}
 }
 
-// toggleEntry toggles entry status
-func (m *WhitelistModel) toggleEntry(entry *db.IpWhitelist) tea.Cmd {
+// toggleGlobalSwitch toggles global whitelist feature status
+func (m *WhitelistModel) toggleGlobalSwitch() tea.Cmd {
 	return func() tea.Msg {
-		newEnabled := int64(1)
-		if entry.Enabled.Int64 == 1 {
-			newEnabled = 0
-		}
-
-		params := &db.UpdateWhitelistEntryParams{
-			IpCidr:      entry.IpCidr,
-			Description: entry.Description,
-			Enabled:     sql.NullInt64{Int64: newEnabled, Valid: true},
-			ID:          entry.ID,
-		}
-
 		queries := repository.New()
-		_, err := queries.UpdateWhitelistEntry(context.Background(), params)
+		if queries == nil {
+			return MsgError{Err: fmt.Errorf("queries not initialized")}
+		}
+
+		// 切换状态
+		newValue := "true"
+		if m.whitelistEnabled {
+			newValue = "false"
+		}
+
+		err := queries.SetGlobalConfig(context.Background(), &db.SetGlobalConfigParams{
+			Key:   GlobalConfigKeyWhitelistEnabled,
+			Value: newValue,
+		})
 		if err != nil {
 			return MsgError{Err: err}
 		}
 
-		return tea.Batch(m.loadEntries(), SendSuccess("状态已切换"))()
+		return tea.Batch(m.loadEntries(), SendSuccess("IP白名单功能已"+map[bool]string{true: "启用", false: "关闭"}[newValue == "true"]))()
 	}
+}
+
+// GetState 获取当前状态
+func (m *WhitelistModel) GetState() AppState {
+	return m.state
 }

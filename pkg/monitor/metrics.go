@@ -59,30 +59,12 @@ var (
 		[]string{"user_id"},
 	)
 
-	// AuthFailures counts authentication failures.
-	AuthFailures = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "auth_failures_total",
-			Help:      "Total number of authentication failures.",
-		},
-	)
-
 	// RoutesTotal tracks total configured routes.
 	RoutesTotal = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "routes_total",
 			Help:      "Number of configured routes.",
-		},
-	)
-
-	// APIKeysTotal tracks total API keys.
-	APIKeysTotal = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "api_keys_total",
-			Help:      "Number of API keys.",
 		},
 	)
 )

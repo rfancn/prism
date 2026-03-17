@@ -11,11 +11,21 @@ import (
 type Tab int
 
 const (
-	TabRoutesIndex Tab = iota
+	TabSourcesIndex Tab = iota
+	TabProjectsIndex
+	TabRouteRulesIndex
 	TabWhitelistIndex
-	TabAPIKeysIndex
 	TabTLSIndex
 )
+
+// Tab names
+var tabNames = []string{
+	"来源",
+	"项目",
+	"路由规则",
+	"白名单",
+	"TLS",
+}
 
 // AppState represents the current state of the application
 type AppState int
@@ -37,9 +47,10 @@ type App struct {
 	keys      KeyMap
 
 	// Sub-models
-	routesModel    *RoutesModel
-	whitelistModel *WhitelistModel
-	apikeysModel   *APIKeysModel
+	sourcesModel    *SourcesModel
+	projectsModel   *ProjectsModel
+	routeRulesModel *RouteRulesModel
+	whitelistModel  *WhitelistModel
 
 	// Messages
 	err     error
@@ -49,21 +60,17 @@ type App struct {
 // NewApp creates a new TUI application
 func NewApp() *App {
 	app := &App{
-		tabs: []string{
-			TabRoutes,
-			TabWhitelist,
-			TabAPIKeys,
-			TabTLS,
-		},
-		activeTab: TabRoutesIndex,
+		tabs:      tabNames,
+		activeTab: TabSourcesIndex,
 		state:     StateList,
 		keys:      DefaultKeyMap(),
 	}
 
 	// Initialize sub-models
-	app.routesModel = NewRoutesModel()
+	app.sourcesModel = NewSourcesModel()
+	app.projectsModel = NewProjectsModel()
+	app.routeRulesModel = NewRouteRulesModel()
 	app.whitelistModel = NewWhitelistModel()
-	app.apikeysModel = NewAPIKeysModel()
 
 	return app
 }
@@ -71,9 +78,10 @@ func NewApp() *App {
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	return tea.Batch(
-		a.routesModel.Init(),
+		a.sourcesModel.Init(),
+		a.projectsModel.Init(),
+		a.routeRulesModel.Init(),
 		a.whitelistModel.Init(),
-		a.apikeysModel.Init(),
 	)
 }
 
@@ -90,28 +98,44 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if contentHeight < 5 {
 			contentHeight = 5
 		}
-		a.routesModel.SetSize(a.width, contentHeight)
+		a.sourcesModel.SetSize(a.width, contentHeight)
+		a.projectsModel.SetSize(a.width, contentHeight)
+		a.routeRulesModel.SetSize(a.width, contentHeight)
 		a.whitelistModel.SetSize(a.width, contentHeight)
-		a.apikeysModel.SetSize(a.width, contentHeight)
 
 	case tea.KeyMsg:
-		// Global key handling
-		switch {
-		case key.Matches(msg, a.keys.Quit):
-			return a, tea.Quit
-		case key.Matches(msg, a.keys.Left):
-			if a.state == StateList && a.activeTab > 0 {
-				a.activeTab--
-			}
-		case key.Matches(msg, a.keys.Right):
-			if a.state == StateList && int(a.activeTab) < len(a.tabs)-1 {
-				a.activeTab++
-			}
-		case key.Matches(msg, a.keys.Esc):
-			if a.state != StateList {
+		// 检查当前活动子模型是否处于表单模式
+		currentState := a.getSubModelState()
+
+		// 如果当前处于表单模式，让子模型优先处理按键
+		// 只有在列表模式下才处理全局键（如 Tab 切换）
+		if currentState != StateList {
+			// 表单模式下只处理全局退出和返回键
+			switch {
+			case key.Matches(msg, a.keys.Quit):
+				return a, tea.Quit
+			case key.Matches(msg, a.keys.Esc):
 				a.state = StateList
 				a.err = nil
 				a.success = ""
+			}
+		} else {
+			// 列表模式下处理全局键
+			switch {
+			case key.Matches(msg, a.keys.Quit):
+				return a, tea.Quit
+			case key.Matches(msg, a.keys.Left):
+				if a.activeTab > 0 {
+					a.activeTab--
+					// 同步筛选条件
+					a.syncFilters()
+				}
+			case key.Matches(msg, a.keys.Right):
+				if int(a.activeTab) < len(a.tabs)-1 {
+					a.activeTab++
+					// 同步筛选条件
+					a.syncFilters()
+				}
 			}
 		}
 
@@ -122,46 +146,122 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.success = msg.Message
 		a.err = nil
 		a.state = StateList
+
+	// 处理所有子模型的加载消息，确保每个模型都能收到
+	case MsgSourcesLoaded:
+		// 更新 sourcesModel
+		a.sourcesModel.sources = msg.Sources
+		a.sourcesModel.refreshList()
+		// 同时更新 projectsModel 的来源列表
+		a.projectsModel.sources = msg.Sources
+		a.projectsModel.refreshList()
+
+	case MsgSourcesLoadedForProject:
+		// projectsModel 专用的来源加载消息
+		a.projectsModel.sources = msg.Sources
+		a.projectsModel.refreshList()
+
+	case MsgProjectsLoaded:
+		a.projectsModel.projects = msg.Projects
+		a.projectsModel.refreshList()
+
+	case MsgProjectsLoadedForRule:
+		a.routeRulesModel.projects = msg.Projects
+		a.routeRulesModel.refreshList()
+
+	case MsgPluginsLoaded:
+		a.routeRulesModel.plugins = msg.Plugins
+
+	case MsgRouteRulesLoaded:
+		a.routeRulesModel.rules = msg.Rules
+		a.routeRulesModel.refreshList()
 	}
 
 	// Update active sub-model
 	switch a.activeTab {
-	case TabRoutesIndex:
-		m, cmd := a.routesModel.Update(msg)
-		a.routesModel = m.(*RoutesModel)
+	case TabSourcesIndex:
+		m, cmd := a.sourcesModel.Update(msg)
+		a.sourcesModel = m.(*SourcesModel)
 		cmds = append(cmds, cmd)
+		// 同步状态
+		a.state = a.sourcesModel.GetState()
+	case TabProjectsIndex:
+		m, cmd := a.projectsModel.Update(msg)
+		a.projectsModel = m.(*ProjectsModel)
+		cmds = append(cmds, cmd)
+		// 同步状态
+		a.state = a.projectsModel.GetState()
+	case TabRouteRulesIndex:
+		m, cmd := a.routeRulesModel.Update(msg)
+		a.routeRulesModel = m.(*RouteRulesModel)
+		cmds = append(cmds, cmd)
+		// 同步状态
+		a.state = a.routeRulesModel.GetState()
 	case TabWhitelistIndex:
 		m, cmd := a.whitelistModel.Update(msg)
 		a.whitelistModel = m.(*WhitelistModel)
 		cmds = append(cmds, cmd)
-	case TabAPIKeysIndex:
-		m, cmd := a.apikeysModel.Update(msg)
-		a.apikeysModel = m.(*APIKeysModel)
-		cmds = append(cmds, cmd)
+		// 同步状态
+		a.state = a.whitelistModel.GetState()
 	}
 
 	return a, tea.Batch(cmds...)
+}
+
+// getSubModelState 获取当前活动子模型的状态
+func (a *App) getSubModelState() AppState {
+	switch a.activeTab {
+	case TabSourcesIndex:
+		return a.sourcesModel.GetState()
+	case TabProjectsIndex:
+		return a.projectsModel.GetState()
+	case TabRouteRulesIndex:
+		return a.routeRulesModel.GetState()
+	case TabWhitelistIndex:
+		return a.whitelistModel.GetState()
+	default:
+		return StateList
+	}
+}
+
+// syncFilters 同步筛选条件
+// 当从项目Tab切换到路由规则Tab时，自动筛选当前选中的项目的规则
+func (a *App) syncFilters() {
+	switch a.activeTab {
+	case TabRouteRulesIndex:
+		// 从项目Tab切换到路由规则Tab时，筛选当前选中的项目
+		if proj := a.projectsModel.GetSelectedProject(); proj != nil {
+			a.routeRulesModel.SetFilterProject(proj)
+		} else {
+			a.routeRulesModel.SetFilterProject(nil)
+		}
+	}
 }
 
 // View renders the application
 func (a *App) View() string {
 	var b strings.Builder
 
-	// Tab bar
-	b.WriteString(TabBar(a.tabs, int(a.activeTab)))
+	// Tab bar - 始终在顶部渲染
+	tabBar := TabBar(a.tabs, int(a.activeTab))
+	b.WriteString(tabBar)
 	b.WriteString("\n\n")
 
 	// Content area based on active tab
+	content := ""
 	switch a.activeTab {
-	case TabRoutesIndex:
-		b.WriteString(a.routesModel.View())
+	case TabSourcesIndex:
+		content = a.sourcesModel.View()
+	case TabProjectsIndex:
+		content = a.projectsModel.View()
+	case TabRouteRulesIndex:
+		content = a.routeRulesModel.View()
 	case TabWhitelistIndex:
-		b.WriteString(a.whitelistModel.View())
-	case TabAPIKeysIndex:
-		b.WriteString(a.apikeysModel.View())
+		content = a.whitelistModel.View()
 	case TabTLSIndex:
-		b.WriteString(a.tlsView())
+		content = a.tlsView()
 	}
+	b.WriteString(content)
 
 	// Error/Success messages
 	if a.err != nil {

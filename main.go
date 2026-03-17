@@ -6,4 +6,5 @@ import "github.com/rfancn/prism/cmd"
 //go:generate sqlc generate -f assets/sqlc.yaml
 func main() {
 	cmd.Execute()
+
 }

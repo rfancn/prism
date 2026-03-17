@@ -32,3 +32,5 @@ go.work.sum
 # .vscode/
 .claude/
 .serena/
+autogen/
+prism.db

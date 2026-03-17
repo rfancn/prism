@@ -14,9 +14,10 @@ import (
 
 var (
 	argConfigFile string
-	argAddress    string
 	argCertFile   string
 	argKeyFile    string
+	argHost       string
+	argPort       int
 
 	cmdRun = &cobra.Command{
 		Use:   "run",
@@ -41,7 +42,8 @@ var (
 
 func init() {
 	cmdRun.Flags().StringVarP(&argConfigFile, "config", "c", "prism.toml", "配置文件路径")
-	cmdRun.Flags().StringVarP(&argAddress, "address", "a", "", "服务监听地址")
+	cmdRun.Flags().StringVarP(&argHost, "host", "h", "127.0.0.1", "服务监听主机")
+	cmdRun.Flags().IntVarP(&argPort, "port", "p", 8080, "服务监听端口")
 	cmdRun.Flags().StringVar(&argCertFile, "cert", "", "SSL 证书文件路径")
 	cmdRun.Flags().StringVar(&argKeyFile, "key", "", "SSL 私钥文件路径")
 }
@@ -53,13 +55,7 @@ func runServer() {
 	}
 
 	// Determine address
-	address := argAddress
-	if address == "" {
-		address = fmt.Sprintf("%s:%d",
-			g.Config.App.Server.Host,
-			g.Config.App.Server.Port,
-		)
-	}
+	address := fmt.Sprintf("%s:%d", argHost, argPort)
 
 	// Build TLS config if certificate files are provided
 	var tlsConfig *types.ServerTLSConfig

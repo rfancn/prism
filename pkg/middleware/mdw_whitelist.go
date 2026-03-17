@@ -9,11 +9,28 @@ import (
 	"github.com/rfancn/prism/repository"
 )
 
+// 全局配置键名
+const GlobalConfigKeyWhitelistEnabled = "ip_whitelist_enabled"
+
 // WhitelistMiddleware checks if the client IP is in the whitelist.
 func NewWhitelistMiddleware() (gin.HandlerFunc, error) {
 	return func(c *gin.Context) {
 		queries := repository.New()
 		if queries == nil {
+			c.Next()
+			return
+		}
+
+		// 检查全局开关是否启用
+		config, err := queries.GetGlobalConfig(context.Background(), GlobalConfigKeyWhitelistEnabled)
+		if err != nil {
+			// 如果配置不存在，默认关闭IP白名单功能
+			c.Next()
+			return
+		}
+
+		// 如果值为 "false" 或 "0"，则关闭IP白名单检查
+		if config.Value != "true" && config.Value != "1" {
 			c.Next()
 			return
 		}

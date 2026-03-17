@@ -31,7 +31,7 @@ func (d ListDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	str := fmt.Sprintf("%s", i.Title())
 
 	if index == m.Index() {
-		fmt.Fprint(w, styleItemSelected.Render("▶ "+str))
+		fmt.Fprint(w, styleItemSelected.Render(str))
 	} else {
 		fmt.Fprint(w, styleItem.Render(str))
 	}
@@ -56,14 +56,6 @@ func EmptyListMessage(message string) string {
 	return styleEmptyState.Render("  " + message)
 }
 
-// RenderBadge 渲染状态徽章
-func RenderBadge(text string, enabled bool) string {
-	if enabled {
-		return styleBadgeEnabled.Render("● " + text)
-	}
-	return styleBadgeDisabled.Render("○ " + text)
-}
-
 // RenderSimpleList 渲染简单列表
 func RenderSimpleList(items []list.Item, selectedIndex, height int) string {
 	var b strings.Builder
@@ -78,35 +70,34 @@ func RenderSimpleList(items []list.Item, selectedIndex, height int) string {
 			continue
 		}
 
-		// 渲染标题行
+		// 构建行内容
+		var line strings.Builder
+
+		// 选中项添加竖线指示器
 		if i == selectedIndex {
-			b.WriteString(styleItemSelected.Render("▶ " + menuItem.Title()))
+			line.WriteString("⏵ ")
 		} else {
-			b.WriteString(styleItem.Render("  " + menuItem.Title()))
+			line.WriteString("  ")
 		}
 
-		// 渲染描述行
-		if menuItem.Description() != "" {
-			b.WriteString("\n")
-			desc := formatDescription(menuItem.Description())
-			b.WriteString(styleCardDesc.Render("    " + desc))
+		// 渲染标题
+		line.WriteString(menuItem.Title())
+
+		// 渲染描述（同一行，小一号字体）
+		if menuItem.Description() != "" && menuItem.Description() != "-" {
+			line.WriteString("  ")
+			line.WriteString(styleCardDesc.Render(menuItem.Description()))
+		}
+
+		// 渲染整行
+		if i == selectedIndex {
+			b.WriteString(styleItemSelected.Render(line.String()))
+		} else {
+			b.WriteString(styleItem.Render(line.String()))
 		}
 
 		b.WriteString("\n")
 	}
 
 	return b.String()
-}
-
-// formatDescription 格式化描述信息
-func formatDescription(desc string) string {
-	if strings.Contains(desc, "[启用]") {
-		badge := RenderBadge("启用", true)
-		return strings.Replace(desc, "[启用]", badge, 1)
-	}
-	if strings.Contains(desc, "[禁用]") {
-		badge := RenderBadge("禁用", false)
-		return strings.Replace(desc, "[禁用]", badge, 1)
-	}
-	return desc
 }

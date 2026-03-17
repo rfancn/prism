@@ -1,72 +1,40 @@
 package cmd
 
 import (
-	"context"
 	"database/sql"
+	"fmt"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/pkg/errors"
+	"github.com/rfancn/prism/assets"
 )
 
-// runMigrations runs the database schema migrations.
+// runMigrations runs the database schema migrations using golang-migrate.
 func runMigrations(db *sql.DB) error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS route (
-		id TEXT PRIMARY KEY,
-		pattern TEXT NOT NULL,
-		identifier TEXT NOT NULL,
-		identifier_source TEXT NOT NULL CHECK (identifier_source IN ('path', 'url_param')),
-		target_url TEXT NOT NULL,
-		enabled INTEGER DEFAULT 1,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
+	// 从嵌入的文件系统创建迁移源
+	source, err := iofs.New(assets.MigrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("创建迁移源失败: %w", err)
+	}
 
-	CREATE TABLE IF NOT EXISTS header (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		route_id TEXT NOT NULL,
-		key TEXT NOT NULL,
-		value TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (route_id) REFERENCES route(id) ON DELETE CASCADE
-	);
+	// 创建 sqlite3 驱动
+	driver, err := sqlite3.WithInstance(db, &sqlite3.Config{})
+	if err != nil {
+		return fmt.Errorf("创建数据库驱动失败: %w", err)
+	}
 
-	CREATE TABLE IF NOT EXISTS ip_whitelist (
-		id TEXT PRIMARY KEY,
-		ip_cidr TEXT NOT NULL UNIQUE,
-		description TEXT,
-		enabled INTEGER DEFAULT 1,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
+	// 创建 migrate 实例
+	m, err := migrate.NewWithInstance("iofs", source, "sqlite3", driver)
+	if err != nil {
+		return fmt.Errorf("创建迁移实例失败: %w", err)
+	}
 
-	CREATE TABLE IF NOT EXISTS api_key (
-		id TEXT PRIMARY KEY,
-		key TEXT NOT NULL UNIQUE,
-		name TEXT NOT NULL,
-		description TEXT,
-		user_id TEXT NOT NULL,
-		enabled INTEGER DEFAULT 1,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		last_used_at DATETIME
-	);
+	// 执行迁移
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("执行迁移失败: %w", err)
+	}
 
-	CREATE TABLE IF NOT EXISTS tls_config (
-		id INTEGER PRIMARY KEY CHECK (id = 1),
-		enabled INTEGER DEFAULT 0,
-		cert_file TEXT,
-		key_file TEXT,
-		auto_cert INTEGER DEFAULT 0,
-		domains TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_route_identifier ON route(identifier);
-	CREATE INDEX IF NOT EXISTS idx_route_enabled ON route(enabled);
-	CREATE INDEX IF NOT EXISTS idx_header_route_id ON header(route_id);
-	CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON ip_whitelist(ip_cidr);
-	CREATE INDEX IF NOT EXISTS idx_whitelist_enabled ON ip_whitelist(enabled);
-	CREATE INDEX IF NOT EXISTS idx_api_key_key ON api_key(key);
-	CREATE INDEX IF NOT EXISTS idx_api_key_enabled ON api_key(enabled);
-	`
-
-	_, err := db.ExecContext(context.Background(), schema)
-	return err
+	return nil
 }

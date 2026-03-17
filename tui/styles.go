@@ -13,7 +13,7 @@ import (
 // Define colors - 柔和现代配色方案
 var (
 	// 基础颜色
-	colorPrimary = lipgloss.Color("#7D56F4") // 紫色
+	colorPrimary = lipgloss.Color("#3B82F6") // 蓝色
 	colorAccent  = lipgloss.Color("#10B981") // 绿色
 	colorError   = lipgloss.Color("#FF6B8A") // 红色
 	colorText    = lipgloss.Color("#FAFAFA") // 主文字颜色
@@ -48,11 +48,11 @@ var (
 
 	// 列表项样式
 	styleItem = lipgloss.NewStyle().
-			PaddingLeft(2)
+			Foreground(colorMuted)
 
 	styleItemSelected = lipgloss.NewStyle().
-				PaddingLeft(1).
-				Foreground(colorAccent).
+				Foreground(colorText).
+				Background(lipgloss.Color("#1E3A5F")).
 				Bold(true)
 
 	styleHelp = lipgloss.NewStyle().
@@ -75,11 +75,7 @@ var (
 			Padding(0, 1).
 			Width(50)
 
-	styleInputFocus = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorPrimary).
-				Padding(0, 1).
-				Width(50)
+	styleInputFocus = styleInput.Copy().BorderForeground(colorPrimary)
 
 	// 对话框样式
 	styleDialog = lipgloss.NewStyle().
@@ -87,10 +83,7 @@ var (
 			BorderForeground(colorPrimary).
 			Padding(1, 2)
 
-	styleDialogError = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorError).
-				Padding(1, 2)
+	styleDialogError = styleDialog.Copy().BorderForeground(colorError)
 
 	// Choice Box 样式
 	styleChoiceBox = lipgloss.NewStyle().
@@ -99,11 +92,7 @@ var (
 			Padding(0, 1).
 			Width(55)
 
-	styleChoiceBoxFocus = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorPrimary).
-				Padding(0, 1).
-				Width(55)
+	styleChoiceBoxFocus = styleChoiceBox.Copy().BorderForeground(colorPrimary)
 
 	styleChoiceOption = lipgloss.NewStyle().
 				Foreground(colorMuted)
@@ -117,18 +106,11 @@ var (
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(colorBorder).
 			Padding(0, 1).
-			Width(12)
+			Width(30)
 
-	styleSelectBoxFocus = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorPrimary).
-				Padding(0, 1).
-				Width(12)
+	styleSelectBoxFocus = styleSelectBox.Copy().BorderForeground(colorPrimary)
 
-	styleSelectExpanded = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorPrimary).
-				Padding(0, 1)
+	styleSelectExpanded = styleSelectBox.Copy().BorderForeground(colorPrimary)
 
 	styleSelectOption = lipgloss.NewStyle().
 				Foreground(colorMuted)
@@ -141,13 +123,6 @@ var (
 	styleCardDesc = lipgloss.NewStyle().
 			Foreground(colorMuted)
 
-	// 状态徽章样式
-	styleBadgeEnabled = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#10B981"))
-
-	styleBadgeDisabled = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FF6B8A"))
-
 	// 空状态样式
 	styleEmptyState = lipgloss.NewStyle().
 				Foreground(colorMuted).
@@ -158,9 +133,6 @@ var (
 			Foreground(colorPrimary).
 			Bold(true).
 			MarginBottom(1)
-
-	styleFormDivider = lipgloss.NewStyle().
-				Foreground(colorBorder)
 
 	// 字段标签样式
 	styleFieldLabel = lipgloss.NewStyle().
@@ -175,24 +147,11 @@ var (
 				Foreground(colorError).
 				Bold(true)
 
-	// 聚焦状态的高亮条
-	styleFocusBar = lipgloss.NewStyle().
-			Foreground(colorPrimary).
-			Bold(true)
-
 	// 帮助提示样式
 	styleFormHelp = lipgloss.NewStyle().
 			Foreground(colorMuted).
 			Padding(0, 1).
 			MarginTop(1)
-)
-
-// Tab names
-const (
-	TabRoutes    = "路由"
-	TabWhitelist = "白名单"
-	TabAPIKeys   = "API Keys"
-	TabTLS       = "TLS"
 )
 
 // MenuItem represents a menu item
@@ -218,42 +177,38 @@ func (m MenuItem) Description() string {
 
 // KeyMap defines key bindings
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Left     key.Binding
-	Right    key.Binding
-	Enter    key.Binding
-	Tab      key.Binding
-	ShiftTab key.Binding
-	Esc      key.Binding
-	Quit     key.Binding
-	Help     key.Binding
-	New      key.Binding
-	Edit     key.Binding
-	Delete   key.Binding
-	Toggle   key.Binding
-	Save     key.Binding
-	Cancel   key.Binding
+	Up     key.Binding
+	Down   key.Binding
+	Left   key.Binding
+	Right  key.Binding
+	Enter  key.Binding
+	Tab    key.Binding
+	Esc    key.Binding
+	Quit   key.Binding
+	New    key.Binding
+	Edit   key.Binding
+	Delete key.Binding
+	Toggle key.Binding
 }
 
 // DefaultKeyMap returns default key bindings
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Up: key.NewBinding(
-			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "上移"),
+			key.WithKeys("up"),
+			key.WithHelp("↑", "上移"),
 		),
 		Down: key.NewBinding(
-			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "下移"),
+			key.WithKeys("down"),
+			key.WithHelp("↓", "下移"),
 		),
 		Left: key.NewBinding(
-			key.WithKeys("left", "h"),
-			key.WithHelp("←/h", "左移"),
+			key.WithKeys("left"),
+			key.WithHelp("←", "左移"),
 		),
 		Right: key.NewBinding(
-			key.WithKeys("right", "l"),
-			key.WithHelp("→/l", "右移"),
+			key.WithKeys("right"),
+			key.WithHelp("→", "右移"),
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
@@ -263,10 +218,6 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "下一项"),
 		),
-		ShiftTab: key.NewBinding(
-			key.WithKeys("shift+tab"),
-			key.WithHelp("shift+tab", "上一项"),
-		),
 		Esc: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "返回"),
@@ -274,10 +225,6 @@ func DefaultKeyMap() KeyMap {
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q", "退出"),
-		),
-		Help: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "帮助"),
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
@@ -294,14 +241,6 @@ func DefaultKeyMap() KeyMap {
 		Toggle: key.NewBinding(
 			key.WithKeys(" "),
 			key.WithHelp("space", "切换"),
-		),
-		Save: key.NewBinding(
-			key.WithKeys("ctrl+s"),
-			key.WithHelp("ctrl+s", "保存"),
-		),
-		Cancel: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "取消"),
 		),
 	}
 }

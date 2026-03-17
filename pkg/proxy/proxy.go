@@ -2,7 +2,6 @@
 package proxy
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hdget/sdk"
-	"github.com/rfancn/prism/autogen/db"
 	"github.com/rfancn/prism/pkg/types"
-	"github.com/rfancn/prism/repository"
 )
 
 // ProxyHandler handles HTTP request proxying.
@@ -29,83 +26,53 @@ func NewProxyHandler(targetTLS *types.TargetTLSConfig) *ProxyHandler {
 	}
 }
 
-// Handler returns a Gin handler function for proxying requests.
-func (p *ProxyHandler) Handler(route *db.Route) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx := context.Background()
-
-		// Extract identifier based on source type
-		identifier, err := p.extractIdentifier(c, route)
-		if err != nil {
-			sdk.Logger().Debug("failed to extract identifier", "err", err, "source", route.IdentifierSource)
-		}
-
-		sdk.Logger().Debug("processing request",
-			"route_id", route.ID,
-			"identifier", identifier,
-			"target", route.TargetUrl,
-			"path", c.Request.URL.Path,
-		)
-
-		// Get headers for the route
-		var headers []*db.Header
-		queries := repository.New()
-		if queries != nil {
-			headers, err = queries.GetHeadersByRouteID(ctx, route.ID)
-			if err != nil {
-				sdk.Logger().Error("failed to get headers", "err", err)
-			}
-		}
-
-		// Create reverse proxy
-		targetURL, err := url.Parse(route.TargetUrl)
-		if err != nil {
-			p.respondError(c, 500, fmt.Sprintf("invalid target URL: %v", err))
-			return
-		}
-
-		proxy := &httputil.ReverseProxy{
-			Director: p.createDirector(targetURL, headers, c),
-			Transport: createTransport(p.targetTLS),
-			ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-				sdk.Logger().Error("proxy error", "err", err)
-				w.WriteHeader(502)
-				json.NewEncoder(w).Encode(gin.H{"error": "bad gateway"})
-			},
-		}
-
-		// Forward the request
-		proxy.ServeHTTP(c.Writer, c.Request)
-	}
+// ForwardOptions 转发选项
+type ForwardOptions struct {
+	// TargetURL 目标URL
+	TargetURL string
+	// Params 从请求中提取的参数（用于URL替换）
+	Params map[string]string
+	// SourceName 来源名称（用于路径处理）
+	SourceName string
+	// ExtraHeaders 额外的请求头信息
+	ExtraHeaders map[string]string
 }
 
-// extractIdentifier extracts the identifier from the request based on the route configuration.
-func (p *ProxyHandler) extractIdentifier(c *gin.Context, route *db.Route) (string, error) {
-	switch route.IdentifierSource {
-	case "path":
-		// Use Gin's built-in path parameter extraction
-		return c.Param(route.Identifier), nil
+// Forward 转发请求到目标服务器
+func (p *ProxyHandler) Forward(c *gin.Context, opts *ForwardOptions) error {
+	// 替换目标URL中的参数占位符
+	targetURL := replaceParams(opts.TargetURL, opts.Params)
 
-	case "url_param":
-		// Use Gin's built-in query parameter extraction
-		value := c.Query(route.Identifier)
-		if value == "" {
-			return "", fmt.Errorf("query parameter %s not found", route.Identifier)
-		}
-		return value, nil
-
-	default:
-		return "", fmt.Errorf("unknown identifier source: %s", route.IdentifierSource)
+	// 解析目标URL
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
 	}
-}
 
-// respondError sends an error response.
-func (p *ProxyHandler) respondError(c *gin.Context, code int, message string) {
-	c.JSON(code, gin.H{"error": message})
+	sdk.Logger().Debug("forwarding request",
+		"target", targetURL,
+		"path", c.Request.URL.Path,
+		"params", opts.Params,
+	)
+
+	// 创建反向代理
+	proxy := &httputil.ReverseProxy{
+		Director:    p.createDirector(target, c, opts),
+		Transport:   createTransport(p.targetTLS),
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			sdk.Logger().Error("proxy error", "err", err, "target", targetURL)
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(gin.H{"error": "bad gateway"})
+		},
+	}
+
+	// 转发请求
+	proxy.ServeHTTP(c.Writer, c.Request)
+	return nil
 }
 
 // createDirector creates a director function for the reverse proxy.
-func (p *ProxyHandler) createDirector(target *url.URL, headers []*db.Header, c *gin.Context) func(*http.Request) {
+func (p *ProxyHandler) createDirector(target *url.URL, c *gin.Context, opts *ForwardOptions) func(*http.Request) {
 	return func(req *http.Request) {
 		// Set the target URL
 		req.URL.Scheme = target.Scheme
@@ -117,17 +84,33 @@ func (p *ProxyHandler) createDirector(target *url.URL, headers []*db.Header, c *
 			targetPath = "/"
 		}
 
-		// Get the remaining path after the route pattern match
+		// Get the remaining path
 		remainingPath := c.Request.URL.Path
+
+		// 如果有来源名称，去除来源前缀
+		if opts != nil && opts.SourceName != "" {
+			sourcePrefix := "/" + opts.SourceName
+			if strings.HasPrefix(remainingPath, sourcePrefix) {
+				remainingPath = strings.TrimPrefix(remainingPath, sourcePrefix)
+			}
+		}
+
+		// 组合目标路径和剩余路径
 		if strings.HasSuffix(targetPath, "/") {
 			req.URL.Path = targetPath + strings.TrimPrefix(remainingPath, "/")
 		} else {
-			req.URL.Path = targetPath + remainingPath
+			if remainingPath != "" && remainingPath != "/" {
+				req.URL.Path = targetPath + remainingPath
+			} else {
+				req.URL.Path = targetPath
+			}
 		}
 
-		// Inject headers
-		for _, h := range headers {
-			req.Header.Set(h.Key, h.Value)
+		// Inject extra headers
+		if opts != nil && opts.ExtraHeaders != nil {
+			for key, value := range opts.ExtraHeaders {
+				req.Header.Set(key, value)
+			}
 		}
 
 		// Set X-Forwarded headers
@@ -145,4 +128,19 @@ func (p *ProxyHandler) createDirector(target *url.URL, headers []*db.Header, c *
 			}
 		}
 	}
+}
+
+// replaceParams 替换URL中的参数占位符
+// 格式：{param_name}
+func replaceParams(template string, params map[string]string) string {
+	if params == nil {
+		return template
+	}
+
+	result := template
+	for key, value := range params {
+		placeholder := "{" + key + "}"
+		result = strings.ReplaceAll(result, placeholder, value)
+	}
+	return result
 }

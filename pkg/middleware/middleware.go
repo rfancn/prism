@@ -11,7 +11,6 @@ import (
 const (
 	NameLogger    = "logger"
 	NameWhitelist = "whitelist"
-	NameAuth      = "auth"
 	NameProxy     = "proxy"
 )
 
@@ -40,5 +39,4 @@ func Initialize() {
 	// Register all middlewares
 	Register(NameLogger, NewLoggerMiddleware)
 	Register(NameWhitelist, NewWhitelistMiddleware)
-	Register(NameAuth, NewAuthMiddleware)
 }

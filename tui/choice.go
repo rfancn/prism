@@ -65,26 +65,49 @@ func (c ChoiceField) View(focused bool) string {
 	var b strings.Builder
 
 	// 渲染选项框内容
-	var optionsStr strings.Builder
-	for i, label := range c.Labels {
-		if i > 0 {
-			optionsStr.WriteString("    ") // 选项之间的间距
-		}
+	// 自动换行：每行最多显示 4 个选项
+	maxOptionsPerLine := 4
+	var lines []string
+	var currentLine strings.Builder
 
+	for i, label := range c.Labels {
+		optionStr := ""
 		if i == c.Selected {
 			// 选中项使用 ◉ 图标
-			optionsStr.WriteString(styleChoiceOptionSelected.Render("◉ " + label))
+			optionStr = styleChoiceOptionSelected.Render("◉ " + label)
 		} else {
 			// 未选中项使用 ○ 图标
-			optionsStr.WriteString(styleChoiceOption.Render("○ " + label))
+			optionStr = styleChoiceOption.Render("○ " + label)
 		}
+
+		// 检查当前行是否已有选项
+		if currentLine.Len() > 0 {
+			// 计算当前行已有多少个选项
+			optionsInCurrentLine := (i - 1) % maxOptionsPerLine
+			if optionsInCurrentLine == maxOptionsPerLine-1 {
+				// 当前行已满，换行
+				lines = append(lines, currentLine.String())
+				currentLine.Reset()
+			} else {
+				currentLine.WriteString("    ") // 选项之间的间距
+			}
+		}
+		currentLine.WriteString(optionStr)
 	}
+
+	// 添加最后一行
+	if currentLine.Len() > 0 {
+		lines = append(lines, currentLine.String())
+	}
+
+	// 组合所有行
+	content := strings.Join(lines, "\n")
 
 	// 选择框样式
 	if focused {
-		b.WriteString(styleChoiceBoxFocus.Render(optionsStr.String()))
+		b.WriteString(styleChoiceBoxFocus.Render(content))
 	} else {
-		b.WriteString(styleChoiceBox.Render(optionsStr.String()))
+		b.WriteString(styleChoiceBox.Render(content))
 	}
 
 	return b.String()

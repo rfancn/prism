@@ -10,6 +10,7 @@ import (
 // LoggerMiddleware logs request details.
 func NewLoggerMiddleware() (gin.HandlerFunc, error) {
 	return func(c *gin.Context) {
+
 		start := time.Now()
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery

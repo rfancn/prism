@@ -1,29 +1,18 @@
 -- Schema for Prism HTTP/HTTPS request relay tool
 -- SQLite database schema
 
--- Route table: stores routing configurations
-CREATE TABLE IF NOT EXISTS route (
-    id TEXT PRIMARY KEY,
-    pattern TEXT NOT NULL,                    -- Path pattern, e.g., /api/{tenant}/users
-    identifier TEXT NOT NULL,                  -- Field name to extract for routing
-    identifier_source TEXT NOT NULL CHECK (identifier_source IN ('path', 'url_param')),
-    target_url TEXT NOT NULL,                  -- Target URL to forward to
-    enabled INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+-- ============================================================
+-- 全局配置表：存储系统全局设置
+-- ============================================================
+CREATE TABLE IF NOT EXISTS global_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Header table: stores custom headers for routes
-CREATE TABLE IF NOT EXISTS header (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    route_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    value TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (route_id) REFERENCES route(id) ON DELETE CASCADE
-);
-
+-- ============================================================
 -- IP whitelist table: stores allowed IP addresses/CIDR ranges
+-- ============================================================
 CREATE TABLE IF NOT EXISTS ip_whitelist (
     id TEXT PRIMARY KEY,
     ip_cidr TEXT NOT NULL UNIQUE,              -- IP address or CIDR range
@@ -32,19 +21,9 @@ CREATE TABLE IF NOT EXISTS ip_whitelist (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- API key table: stores API keys for authentication
-CREATE TABLE IF NOT EXISTS api_key (
-    id TEXT PRIMARY KEY,
-    key TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    description TEXT,
-    user_id TEXT NOT NULL,                     -- User identifier for rate limiting
-    enabled INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used_at DATETIME
-);
-
+-- ============================================================
 -- TLS configuration
+-- ============================================================
 CREATE TABLE IF NOT EXISTS tls_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     enabled INTEGER DEFAULT 0,
@@ -56,11 +35,90 @@ CREATE TABLE IF NOT EXISTS tls_config (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_route_identifier ON route(identifier);
-CREATE INDEX IF NOT EXISTS idx_route_enabled ON route(enabled);
-CREATE INDEX IF NOT EXISTS idx_header_route_id ON header(route_id);
+-- ============================================================
+-- 1. 来源表：存储请求来源
+-- ============================================================
+CREATE TABLE IF NOT EXISTS source (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,          -- 来源名称，如 weixin, kdniao
+    description TEXT,
+    enabled INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 2. 项目表：每个来源下可配置多个项目
+-- ============================================================
+CREATE TABLE IF NOT EXISTS project (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,            -- 关联来源
+    name TEXT NOT NULL,                 -- 项目名称
+    description TEXT,
+    enabled INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_id) REFERENCES source(id) ON DELETE CASCADE,
+    UNIQUE(source_id, name)             -- 同一来源下项目名唯一
+);
+
+-- ============================================================
+-- 3. 路由规则表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS route_rule (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,           -- 关联项目
+    name TEXT NOT NULL,                 -- 规则名称
+    match_type TEXT NOT NULL CHECK (match_type IN (
+        'param_path',      -- 参数化路径匹配
+        'url_param',       -- URL参数匹配
+        'request_body',    -- 请求内容匹配
+        'request_form',    -- 请求表单匹配
+        'plugin'           -- 插件模式
+    )),
+
+    -- 参数化路径匹配专用字段
+    path_pattern TEXT,                  -- 带参数的路径，如 /users/{id}/orders/{orderId}
+
+    -- CEL表达式（用于所有内置模式）
+    cel_expression TEXT,                -- CEL表达式
+
+    -- 插件模式专用字段
+    plugin_name TEXT,                   -- 插件名称
+
+    -- 目标配置
+    target_url TEXT NOT NULL,           -- 目标URL
+
+    enabled INTEGER DEFAULT 1,
+    priority INTEGER DEFAULT 0,         -- 匹配优先级（数字越小优先级越高）
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
+    UNIQUE(project_id, name)            -- 同一项目下规则名唯一
+);
+
+-- ============================================================
+-- 4. 插件注册表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS plugin_registry (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,          -- 插件名称
+    description TEXT,                   -- 插件描述
+    version TEXT,                       -- 插件版本
+    command TEXT NOT NULL,              -- 插件可执行文件路径或命令
+    enabled INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 索引
+-- ============================================================
 CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON ip_whitelist(ip_cidr);
 CREATE INDEX IF NOT EXISTS idx_whitelist_enabled ON ip_whitelist(enabled);
-CREATE INDEX IF NOT EXISTS idx_api_key_key ON api_key(key);
-CREATE INDEX IF NOT EXISTS idx_api_key_enabled ON api_key(enabled);
+CREATE INDEX IF NOT EXISTS idx_source_enabled ON source(enabled);
+CREATE INDEX IF NOT EXISTS idx_project_source_id ON project(source_id);
+CREATE INDEX IF NOT EXISTS idx_project_enabled ON project(enabled);
+CREATE INDEX IF NOT EXISTS idx_route_rule_project_id ON route_rule(project_id);
+CREATE INDEX IF NOT EXISTS idx_route_rule_enabled ON route_rule(enabled);
+CREATE INDEX IF NOT EXISTS idx_route_rule_priority ON route_rule(priority);
+CREATE INDEX IF NOT EXISTS idx_plugin_registry_name ON plugin_registry(name);

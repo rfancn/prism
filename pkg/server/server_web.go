@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -17,9 +16,8 @@ import (
 	"github.com/rfancn/prism/g"
 	"github.com/rfancn/prism/pkg/middleware"
 	"github.com/rfancn/prism/pkg/monitor"
-	"github.com/rfancn/prism/pkg/proxy"
+	"github.com/rfancn/prism/pkg/router"
 	"github.com/rfancn/prism/pkg/types"
-	"github.com/rfancn/prism/repository"
 )
 
 const gracefulShutdownTime = 15 * time.Second
@@ -30,6 +28,7 @@ type WebServer struct {
 	httpServer  *http.Server
 	httpsServer *http.Server
 	tlsConfig   *types.ServerTLSConfig
+	router      *router.Router
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          *sync.WaitGroup
@@ -96,57 +95,48 @@ func (s *WebServer) setupRoutes() error {
 		return fmt.Errorf("failed to get logger middleware: %w", err)
 	}
 
-	authMdw, _ := middleware.Get(middleware.NameAuth)
-
 	// Apply global middlewares
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(loggerMdw)
 
-	// Health and metrics endpoints (no auth required)
+	// Health and metrics endpoints
 	s.engine.GET("/health", monitor.HealthHandler(cmdVersion))
 	s.engine.GET("/ready", monitor.ReadyHandler())
 	s.engine.GET("/metrics", monitor.MetricsHandler())
 
-	// Create proxy handler
-	proxyHandler := proxy.NewProxyHandler(&types.TargetTLSConfig{})
-
-	// Create route group with auth middleware
-	apiGroup := s.engine.Group("")
-	if authMdw != nil {
-		apiGroup.Use(authMdw)
+	// 创建路由管理器
+	pluginPaths := g.Config.App.Plugin.Paths
+	if len(pluginPaths) == 0 {
+		// 默认插件路径
+		pluginPaths = []string{"./plugins"}
 	}
 
-	// Load routes from database and register with Gin
-	queries := repository.New()
-	routes, err := queries.ListEnabledRoutes(context.Background())
+	s.router, err = router.NewRouter(pluginPaths)
 	if err != nil {
-		return fmt.Errorf("failed to load routes: %w", err)
+		return fmt.Errorf("failed to create router: %w", err)
 	}
 
-	for _, route := range routes {
-		// Convert pattern: {tenant} -> :tenant
-		ginPattern := convertPattern(route.Pattern)
-
-		sdk.Logger().Debug("registering route",
-			"id", route.ID,
-			"pattern", route.Pattern,
-			"gin_pattern", ginPattern,
-			"target", route.TargetUrl,
-		)
-
-		// Register with Gin - capture route for closure
-		routeCopy := route
-		apiGroup.Any(ginPattern, proxyHandler.Handler(routeCopy))
+	// 加载插件
+	ctx := context.Background()
+	if err := s.router.LoadPlugins(ctx); err != nil {
+		sdk.Logger().Warn("failed to load plugins", "err", err)
 	}
+
+	// 加载路由配置
+	if err := s.router.LoadConfig(ctx); err != nil {
+		return fmt.Errorf("failed to load router config: %w", err)
+	}
+
+	// 注册路由处理器
+	// 使用通配符路由捕获所有请求，由 Router.Handler 处理匹配逻辑
+	// NoRoute 只能用于 gin.Engine，不能用于 RouterGroup
+	s.engine.NoRoute(s.router.Handler())
+
+	sdk.Logger().Info("routes configured with new router",
+		"plugin_paths", pluginPaths,
+	)
 
 	return nil
-}
-
-// convertPattern converts {param} syntax to Gin's :param syntax.
-// Example: /api/{tenant}/users -> /api/:tenant/users
-func convertPattern(pattern string) string {
-	re := regexp.MustCompile(`\{(\w+)\}`)
-	return re.ReplaceAllString(pattern, ":$1")
 }
 
 // Run starts the server and blocks until interrupted.
@@ -237,6 +227,11 @@ func (s *WebServer) Stop() {
 	s.wg.Wait()
 
 	sdk.Logger().Info("server stopped")
+}
+
+// GetRouter 获取路由管理器
+func (s *WebServer) GetRouter() *router.Router {
+	return s.router
 }
 
 // cmdVersion is set during build
