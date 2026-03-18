@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -14,15 +15,17 @@ import (
 
 // ProjectsModel 管理项目列表
 type ProjectsModel struct {
-	list     list.Model
-	projects []*db.Project
-	sources  []*db.Source // 来源列表，用于选择器
-	state    AppState
-	form     *Form
-	selected *db.Project
-	width    int
-	height   int
-	keys     KeyMap
+	list          list.Model
+	projects      []*db.Project
+	sources       []*db.Source // 来源列表，用于选择器
+	state         AppState
+	form          *Form
+	selected      *db.Project
+	errorMessage  string // 错误消息
+	previousState AppState // 用于错误弹窗返回之前的状态
+	width         int
+	height        int
+	keys          KeyMap
 }
 
 // NewProjectsModel 创建一个新的项目模型
@@ -129,6 +132,19 @@ func (m *ProjectsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MsgRefresh:
 		m.refreshList()
 
+	case MsgError:
+		// 显示错误弹窗
+		m.errorMessage = msg.Err.Error()
+		m.previousState = m.state
+		m.state = StateError
+		return m, nil
+
+	case MsgSuccess:
+		// 保存成功，关闭表单
+		m.form = nil
+		m.state = StateList
+		m.selected = nil
+
 	case tea.KeyMsg:
 		switch m.state {
 		case StateList:
@@ -148,21 +164,58 @@ func (m *ProjectsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = StateConfirm
 				}
 				return m, nil
-			case key.Matches(msg, m.keys.Toggle):
+			case key.Matches(msg, m.keys.Rules):
+				// 进入该项目的路由规则管理
 				if len(m.projects) > 0 && m.list.Index() < len(m.projects) {
-					return m, m.toggleProject(m.projects[m.list.Index()])
+					proj := m.projects[m.list.Index()]
+					// 查找项目所属来源名称
+					sourceName := "未知来源"
+					for _, s := range m.sources {
+						if s.ID == proj.SourceID {
+							sourceName = s.Name
+							break
+						}
+					}
+					return m, func() tea.Msg {
+						return MsgManageRules{
+							SourceName: sourceName,
+							Project:    proj,
+						}
+					}
 				}
+				return m, nil
 			}
 
 		case StateForm:
 			switch {
 			case key.Matches(msg, m.keys.Enter):
-				// 检查是否有展开的下拉框
-				if m.form != nil && m.form.HasExpandedSelect() {
-					// 让表单处理 Enter 键
+				// 检查是否有展开的下拉框或当前聚焦的是TextArea
+				if m.form != nil && (m.form.HasExpandedSelect() || m.form.IsTextAreaFocused()) {
 					break
 				}
-				return m, m.saveProject()
+				// 焦点不在按钮上时，不处理 Enter 键（让 Form.Update 处理导航）
+				if m.form != nil && !m.form.focusOnButtons {
+					break
+				}
+				// 检查是否点击取消按钮
+				if m.form != nil && m.form.IsCancelled() {
+					m.state = StateList
+					m.form = nil
+					m.selected = nil
+					return m, nil
+				}
+				// 焦点在确认按钮上才保存
+				if m.form != nil && m.form.IsConfirmed() {
+					// 先验证表单
+					if err := m.form.Validate(); err != nil {
+						m.errorMessage = err.Error()
+						m.previousState = StateForm
+						m.state = StateError
+						return m, nil
+					}
+					return m, m.saveProject()
+				}
+				return m, nil
 			case key.Matches(msg, m.keys.Esc):
 				m.state = StateList
 				m.form = nil
@@ -180,6 +233,11 @@ func (m *ProjectsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected = nil
 				return m, nil
 			}
+
+		case StateError:
+			// 任意键关闭错误弹窗
+			m.state = m.previousState
+			return m, nil
 		}
 	}
 
@@ -206,11 +264,11 @@ func (m *ProjectsModel) View() string {
 	case StateList:
 		if len(m.projects) == 0 {
 			return EmptyListMessage("暂无项目，按 'n' 创建新项目") + "\n\n" +
-				Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+				Help("n 新建", "e 编辑", "d 删除", "r 管理规则")
 		}
 		items := m.list.Items()
 		return RenderSimpleList(items, m.list.Index(), m.height-5) +
-			"\n" + Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+			"\n" + Help("n 新建", "e 编辑", "d 删除", "r 管理规则")
 
 	case StateForm:
 		if m.form != nil {
@@ -224,6 +282,9 @@ func (m *ProjectsModel) View() string {
 				true,
 			) + "\n\n" + Help("Enter 确认删除", "Esc 取消")
 		}
+
+	case StateError:
+		return Box("错误", m.errorMessage, false) + "\n\n" + Help("Enter 确定")
 	}
 
 	return ""
@@ -252,6 +313,11 @@ func (m *ProjectsModel) showCreateForm() {
 			Key:      "description",
 			Input:    newTextInput("例如: 微信回调项目"),
 			Required: false,
+		},
+		&NumberField{
+			Label: "优先级",
+			Key:   "priority",
+			Input: newTextInput("0"),
 		},
 	})
 	// 设置表单尺寸
@@ -293,6 +359,11 @@ func (m *ProjectsModel) showEditForm() {
 			Input:    newTextInput(""),
 			Required: false,
 		},
+		&NumberField{
+			Label: "优先级",
+			Key:   "priority",
+			Input: newTextInput(fmt.Sprintf("%d", m.selected.Priority.Int64)),
+		},
 	})
 	// 设置表单值
 	m.form.SetValue("name", m.selected.Name)
@@ -311,19 +382,24 @@ func (m *ProjectsModel) saveProject() tea.Cmd {
 			return nil
 		}
 
-		if err := m.form.Validate(); err != nil {
-			return MsgError{Err: err}
-		}
-
+		// 验证已在 Update 方法中完成，这里不再重复验证
 		values := m.form.Values()
 		queries := repository.New()
+
+		// 解析优先级值
+		priority, err := strconv.ParseInt(values["priority"], 10, 64)
+		if err != nil {
+			priority = 0 // 默认优先级
+		}
 
 		if m.selected != nil {
 			// 更新现有项目
 			params := &db.UpdateProjectParams{
+				SourceID:    values["source_id"],
 				Name:        values["name"],
 				Description: sql.NullString{String: values["description"], Valid: values["description"] != ""},
-				Enabled:     m.selected.Enabled,
+				TargetUrl:   m.selected.TargetUrl,
+				Priority:    sql.NullInt64{Int64: priority, Valid: true},
 				ID:          m.selected.ID,
 			}
 			_, err := queries.UpdateProject(context.Background(), params)
@@ -338,7 +414,7 @@ func (m *ProjectsModel) saveProject() tea.Cmd {
 				SourceID:    values["source_id"],
 				Name:        values["name"],
 				Description: sql.NullString{String: values["description"], Valid: values["description"] != ""},
-				Enabled:     sql.NullInt64{Int64: 1, Valid: true},
+				Priority:    sql.NullInt64{Int64: priority, Valid: true},
 			}
 			_, err := queries.CreateProject(context.Background(), params)
 			if err != nil {
@@ -346,8 +422,6 @@ func (m *ProjectsModel) saveProject() tea.Cmd {
 			}
 		}
 
-		m.form = nil
-		m.state = StateList
 		return tea.Batch(m.loadProjects(), SendSuccess("项目已保存"))()
 	}
 }
@@ -367,31 +441,6 @@ func (m *ProjectsModel) deleteProject() tea.Cmd {
 
 		m.selected = nil
 		return tea.Batch(m.loadProjects(), SendSuccess("项目已删除"))()
-	}
-}
-
-// toggleProject 切换项目启用状态
-func (m *ProjectsModel) toggleProject(project *db.Project) tea.Cmd {
-	return func() tea.Msg {
-		newEnabled := int64(1)
-		if project.Enabled.Int64 == 1 {
-			newEnabled = 0
-		}
-
-		params := &db.UpdateProjectParams{
-			Name:        project.Name,
-			Description: project.Description,
-			Enabled:     sql.NullInt64{Int64: newEnabled, Valid: true},
-			ID:          project.ID,
-		}
-
-		queries := repository.New()
-		_, err := queries.UpdateProject(context.Background(), params)
-		if err != nil {
-			return MsgError{Err: err}
-		}
-
-		return tea.Batch(m.loadProjects(), SendSuccess("状态已切换"))()
 	}
 }
 

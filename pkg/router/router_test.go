@@ -12,7 +12,7 @@ import (
 	"github.com/rfancn/prism/autogen/db"
 	"github.com/rfancn/prism/pkg/cel"
 	"github.com/rfancn/prism/pkg/matcher"
-	"github.com/rfancn/prism/plugin"
+	"github.com/rfancn/prism/pkg/plugin"
 )
 
 func init() {
@@ -68,14 +68,14 @@ func TestExtractSourceName(t *testing.T) {
 
 func TestMatcherFactory_Create(t *testing.T) {
 	celEngine := newTestCelEngine(t)
-	pluginMgr := plugin.NewManager(nil)
+	pluginMgr := plugin.NewManager("")
 	factory := matcher.NewFactory(celEngine, pluginMgr)
 
 	tests := []struct {
 		matchType string
 		wantNil   bool
 	}{
-		{matcher.MatchTypeParamPath, false},
+		{matcher.MatchTypePathParam, false},
 		{matcher.MatchTypeURLParam, false},
 		{matcher.MatchTypeRequestBody, false},
 		{matcher.MatchTypeRequestForm, false},
@@ -358,9 +358,8 @@ func TestThreeLayerRouting_MatchFlow(t *testing.T) {
 	// 模拟三层路由配置
 	sourceConfig := &SourceConfig{
 		Source: &db.Source{
-			ID:      "src-001",
-			Name:    "weixin",
-			Enabled: sql.NullInt64{Int64: 1, Valid: true},
+			ID:   "src-001",
+			Name: "weixin",
 		},
 		Projects: []*ProjectConfig{
 			{
@@ -368,31 +367,29 @@ func TestThreeLayerRouting_MatchFlow(t *testing.T) {
 					ID:        "proj-001",
 					SourceID:  "src-001",
 					Name:      "order-service",
-					Enabled:   sql.NullInt64{Int64: 1, Valid: true},
+					TargetUrl: sql.NullString{String: "http://backend/api", Valid: true},
 				},
 				Rules: []*RouteRuleConfig{
 					{
 						Rule: &db.RouteRule{
-							ID:           "rule-001",
-							ProjectID:    "proj-001",
-							Name:         "get-order",
-							MatchType:    matcher.MatchTypeParamPath,
-							PathPattern:  sql.NullString{String: "/orders/{orderId}", Valid: true},
-							TargetUrl:    "http://backend/api/orders/{orderId}",
-							Priority:     sql.NullInt64{Int64: 1, Valid: true},
+							ID:          "rule-001",
+							ProjectID:   "proj-001",
+							Name:        "get-order",
+							MatchType:   matcher.MatchTypePathParam,
+							PathPattern: sql.NullString{String: "/orders/{orderId}", Valid: true},
+							Priority:    sql.NullInt64{Int64: 1, Valid: true},
 						},
 					},
 					{
 						Rule: &db.RouteRule{
-							ID:           "rule-002",
-							ProjectID:    "proj-001",
-							Name:         "list-orders",
-							MatchType:    matcher.MatchTypeParamPath,
-							PathPattern:  sql.NullString{String: "/orders", Valid: true},
+							ID:          "rule-002",
+							ProjectID:   "proj-001",
+							Name:        "list-orders",
+							MatchType:   matcher.MatchTypePathParam,
+							PathPattern: sql.NullString{String: "/orders", Valid: true},
 							// 使用 URL 参数来区分不同的操作
 							CelExpression: sql.NullString{String: "'action' in params", Valid: true},
-							TargetUrl:    "http://backend/api/orders",
-							Priority:     sql.NullInt64{Int64: 2, Valid: true},
+							Priority:      sql.NullInt64{Int64: 2, Valid: true},
 						},
 					},
 				},
@@ -412,7 +409,7 @@ func TestThreeLayerRouting_MatchFlow(t *testing.T) {
 			method:      "GET",
 			path:        "/orders/12345",
 			expectMatch: true,
-			expectRule:  "get-order",  // 使用 Name 字段
+			expectRule:  "get-order", // 使用 Name 字段
 		},
 		{
 			name:        "匹配带参数的订单列表",
@@ -492,7 +489,7 @@ func TestRulePriority(t *testing.T) {
 			Rule: &db.RouteRule{
 				ID:          "rule-low",
 				Name:        "low-priority",
-				MatchType:   matcher.MatchTypeParamPath,
+				MatchType:   matcher.MatchTypePathParam,
 				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
 				Priority:    sql.NullInt64{Int64: 10, Valid: true},
 			},
@@ -501,7 +498,7 @@ func TestRulePriority(t *testing.T) {
 			Rule: &db.RouteRule{
 				ID:          "rule-high",
 				Name:        "high-priority",
-				MatchType:   matcher.MatchTypeParamPath,
+				MatchType:   matcher.MatchTypePathParam,
 				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
 				Priority:    sql.NullInt64{Int64: 1, Valid: true},
 			},
@@ -510,7 +507,7 @@ func TestRulePriority(t *testing.T) {
 			Rule: &db.RouteRule{
 				ID:          "rule-mid",
 				Name:        "mid-priority",
-				MatchType:   matcher.MatchTypeParamPath,
+				MatchType:   matcher.MatchTypePathParam,
 				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
 				Priority:    sql.NullInt64{Int64: 5, Valid: true},
 			},

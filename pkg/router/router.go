@@ -11,9 +11,9 @@ import (
 	"github.com/hdget/sdk"
 	"github.com/rfancn/prism/pkg/cel"
 	"github.com/rfancn/prism/pkg/matcher"
+	"github.com/rfancn/prism/pkg/plugin"
 	"github.com/rfancn/prism/pkg/proxy"
 	"github.com/rfancn/prism/pkg/types"
-	"github.com/rfancn/prism/plugin"
 )
 
 // Router 路由管理器
@@ -28,7 +28,7 @@ type Router struct {
 }
 
 // NewRouter 创建路由管理器
-func NewRouter(pluginPaths []string) (*Router, error) {
+func NewRouter(pluginPath string) (*Router, error) {
 	// 创建CEL引擎
 	celEngine, err := cel.NewEngine()
 	if err != nil {
@@ -36,7 +36,7 @@ func NewRouter(pluginPaths []string) (*Router, error) {
 	}
 
 	// 创建插件管理器
-	pluginMgr := plugin.NewManager(pluginPaths)
+	pluginMgr := plugin.NewManager(pluginPath)
 
 	// 创建路由加载器
 	loader := NewLoader()
@@ -112,11 +112,20 @@ func (r *Router) findSource(name string) *SourceConfig {
 
 // findMatch 在来源配置中查找匹配的路由规则
 func (r *Router) findMatch(ctx context.Context, c *gin.Context, sourceConfig *SourceConfig) *MatchContext {
-	for _, projectConfig := range sourceConfig.Projects {
-		// 按优先级排序规则（已经在SQL中按priority排序，这里再确认）
+	// 复制项目列表并按优先级排序
+	projects := make([]*ProjectConfig, len(sourceConfig.Projects))
+	copy(projects, sourceConfig.Projects)
+	sort.Slice(projects, func(i, j int) bool {
+		// priority小的优先
+		pi := projects[i].Project.Priority.Int64
+		pj := projects[j].Project.Priority.Int64
+		return pi < pj
+	})
+
+	for _, projectConfig := range projects {
+		// 按优先级排序规则
 		rules := projectConfig.Rules
 		sort.Slice(rules, func(i, j int) bool {
-			// priority小的优先
 			pi := rules[i].Rule.Priority.Int64
 			pj := rules[j].Rule.Priority.Int64
 			return pi < pj
@@ -162,10 +171,20 @@ func (r *Router) findMatch(ctx context.Context, c *gin.Context, sourceConfig *So
 
 // forwardRequest 转发请求到目标服务器
 func (r *Router) forwardRequest(c *gin.Context, matchCtx *MatchContext) {
+	// 从 Project 获取目标URL
+	if !matchCtx.Project.TargetUrl.Valid || matchCtx.Project.TargetUrl.String == "" {
+		sdk.Logger().Error("project has no target URL configured",
+			"project_id", matchCtx.Project.ID,
+			"project_name", matchCtx.Project.Name,
+		)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "project target URL not configured"})
+		return
+	}
+
 	// 构建转发选项
 	opts := &proxy.ForwardOptions{
-		TargetURL: matchCtx.Rule.TargetUrl,
-		Params:    matchCtx.Params,
+		TargetURL:  matchCtx.Project.TargetUrl.String,
+		Params:     matchCtx.Params,
 		SourceName: matchCtx.Source.Name,
 		ExtraHeaders: map[string]string{
 			"X-Prism-Source":  matchCtx.Source.Name,
@@ -214,4 +233,99 @@ func (r *Router) ReloadConfig(ctx context.Context) error {
 // GetLoader 获取路由加载器
 func (r *Router) GetLoader() *Loader {
 	return r.loader
+}
+
+// RegisterRoutes 注册所有 param_path 类型的路由到 Gin 引擎
+// 遍历配置中的所有 Source -> Project -> Rule，为 match_type 为 param_path 的规则注册路由
+func (r *Router) RegisterRoutes(engine *gin.Engine) error {
+	// 检查配置是否已加载
+	if r.config == nil {
+		return fmt.Errorf("router config not loaded, please call LoadConfig first")
+	}
+
+	// 记录注册的路由数量
+	registeredCount := 0
+
+	// 遍历所有来源
+	for _, sourceConfig := range r.config.Sources {
+		sourceName := sourceConfig.Source.Name
+
+		// 遍历所有项目
+		for _, projectConfig := range sourceConfig.Projects {
+			// 遍历所有规则
+			for _, ruleConfig := range projectConfig.Rules {
+				rule := ruleConfig.Rule
+
+				// 只处理 param_path 类型的规则
+				if rule.MatchType != matcher.MatchTypePathParam {
+					continue
+				}
+
+				// 检查路径模式是否存在
+				if !rule.PathPattern.Valid || rule.PathPattern.String == "" {
+					sdk.Logger().Warn("rule has empty path pattern, skipping",
+						"rule_id", rule.ID,
+						"rule_name", rule.Name,
+					)
+					continue
+				}
+
+				// 构建完整路径：/{source_name}{path_pattern}
+				pathPattern := rule.PathPattern.String
+				fullPath := "/" + sourceName + convertToGinPath(pathPattern)
+
+				// 使用 r.Handler() 作为处理函数
+				handler := r.Handler()
+
+				// 注册 GET 和 POST 方法的路由
+				engine.GET(fullPath, handler)
+				engine.POST(fullPath, handler)
+
+				registeredCount++
+
+				sdk.Logger().Info("route registered",
+					"source", sourceName,
+					"project", projectConfig.Project.Name,
+					"rule", rule.Name,
+					"path", fullPath,
+					"methods", "GET,POST",
+				)
+			}
+		}
+	}
+
+	sdk.Logger().Info("routes registration completed", "total_registered", registeredCount)
+	return nil
+}
+
+// convertToGinPath 将路径参数格式从 {param} 转换为 Gin 格式 :param
+// 例如: /orders/{id} -> /orders/:id
+//
+//	/users/{userId}/orders/{orderId} -> /users/:userId/orders/:orderId
+func convertToGinPath(pattern string) string {
+	var result strings.Builder
+	i := 0
+	n := len(pattern)
+
+	for i < n {
+		if pattern[i] == '{' {
+			// 找到花括号的结束位置
+			j := i + 1
+			for j < n && pattern[j] != '}' {
+				j++
+			}
+			if j < n && pattern[j] == '}' {
+				// 提取参数名（不包含花括号）
+				paramName := pattern[i+1 : j]
+				result.WriteString(":")
+				result.WriteString(paramName)
+				i = j + 1
+				continue
+			}
+		}
+		result.WriteByte(pattern[i])
+		i++
+	}
+
+	return result.String()
 }

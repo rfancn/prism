@@ -16,7 +16,7 @@ import (
 type Manager struct {
 	mu      sync.RWMutex
 	plugins map[string]*PluginInstance // 插件名称 -> 插件实例
-	paths   []string                   // 插件搜索路径
+	path    string                     // 插件搜索路径
 }
 
 // PluginInstance 插件实例
@@ -29,10 +29,10 @@ type PluginInstance struct {
 }
 
 // NewManager 创建新的插件管理器
-func NewManager(pluginPaths []string) *Manager {
+func NewManager(pluginPath string) *Manager {
 	return &Manager{
 		plugins: make(map[string]*PluginInstance),
-		paths:   pluginPaths,
+		path:    pluginPath,
 	}
 }
 
@@ -89,10 +89,10 @@ func (m *Manager) LoadPlugin(ctx context.Context, pluginPath string) (*PluginIns
 
 	instance := &PluginInstance{
 		Name:     info.Name,
-		Path:      absPath,
-		Client:    client,
-		Instance:  routerPlugin,
-		Info:      info,
+		Path:     absPath,
+		Client:   client,
+		Instance: routerPlugin,
+		Info:     info,
 	}
 
 	m.plugins[info.Name] = instance
@@ -101,28 +101,27 @@ func (m *Manager) LoadPlugin(ctx context.Context, pluginPath string) (*PluginIns
 
 // LoadAll 加载所有插件
 func (m *Manager) LoadAll(ctx context.Context) error {
-	for _, searchPath := range m.paths {
-		// 遍历插件目录
-		files, err := filepath.Glob(filepath.Join(searchPath, "*"))
-		if err != nil {
-			return fmt.Errorf("搜索插件目录失败: %w", err)
+	// 遍历插件目录
+	files, err := filepath.Glob(filepath.Join(m.path, "*"))
+	if err != nil {
+		return fmt.Errorf("搜索插件目录失败: %w", err)
+	}
+
+	for _, file := range files {
+		// 跳过目录
+		if info, err := os.Stat(file); err != nil || info.IsDir() {
+			continue
 		}
 
-		for _, file := range files {
-			// 跳过目录
-			if info, err := os.Stat(file); err != nil || info.IsDir() {
-				continue
-			}
-
-			// 尝试加载插件
-			_, err := m.LoadPlugin(ctx, file)
-			if err != nil {
-				// 记录错误但继续加载其他插件
-				fmt.Printf("加载插件失败 %s: %v\n", file, err)
-				continue
-			}
+		// 尝试加载插件
+		_, err := m.LoadPlugin(ctx, file)
+		if err != nil {
+			// 记录错误但继续加载其他插件
+			fmt.Printf("加载插件失败 %s: %v\n", file, err)
+			continue
 		}
 	}
+
 	return nil
 }
 
@@ -231,14 +230,6 @@ func (m *Manager) ListPlugins() []*PluginInfo {
 		infos = append(infos, instance.Info)
 	}
 	return infos
-}
-
-// AddPluginPath 添加插件搜索路径
-func (m *Manager) AddPluginPath(path string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.paths = append(m.paths, path)
 }
 
 // getPluginMap 返回插件映射

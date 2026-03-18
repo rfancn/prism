@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // FormField 定义表单字段接口
@@ -69,7 +68,7 @@ func (i InputField) View(focused bool) string {
 
 	// 必填标记
 	if i.Required {
-		b.WriteString(styleFieldRequired.Render(" *"))
+		b.WriteString(styleFieldRequired.Render("*"))
 	}
 	b.WriteString("\n")
 
@@ -147,10 +146,10 @@ func (c ChoiceFieldWrapper) View(focused bool) string {
 	} else {
 		b.WriteString(styleFieldLabel.Render(c.Label))
 	}
-	b.WriteString(styleFieldRequired.Render(" *"))
+	b.WriteString(styleFieldRequired.Render("*"))
 	b.WriteString("\n")
 
-	// 渲染选择框
+	// 渲染选择框（选项在下方）
 	b.WriteString(c.ChoiceField.View(focused))
 
 	return b.String()
@@ -200,10 +199,10 @@ func (c *IDChoiceField) View(focused bool) string {
 	} else {
 		b.WriteString(styleFieldLabel.Render(c.Label))
 	}
-	b.WriteString(styleFieldRequired.Render(" *"))
+	b.WriteString(styleFieldRequired.Render("*"))
 	b.WriteString("\n")
 
-	// 渲染选择框
+	// 渲染选择框（选项在下方）
 	b.WriteString(c.ChoiceField.View(focused))
 
 	return b.String()
@@ -251,15 +250,6 @@ func NewSelectField(label, key string, options []string, defaultIndex int) *Sele
 func (s *SelectField) View(focused bool) string {
 	var b strings.Builder
 
-	// 渲染标签
-	if focused {
-		b.WriteString(styleFieldLabelFocused.Render(s.Label))
-	} else {
-		b.WriteString(styleFieldLabel.Render(s.Label))
-	}
-	b.WriteString(styleFieldRequired.Render(" *"))
-	b.WriteString("\n")
-
 	// 获取当前选中项显示文本
 	currentText := ""
 	if len(s.Options) > 0 && s.Selected >= 0 && s.Selected < len(s.Options) {
@@ -267,12 +257,19 @@ func (s *SelectField) View(focused bool) string {
 	}
 
 	if s.Expanded {
-		// 展开状态：显示当前选项 + 下拉列表
-		headerText := currentText + "   ▾"
-		b.WriteString(styleSelectExpanded.Render(headerText))
+		// 展开状态：标签和当前选项在同一行，下拉列表在下方
+		if focused {
+			b.WriteString(styleFieldLabelFocused.Render(s.Label))
+		} else {
+			b.WriteString(styleFieldLabel.Render(s.Label))
+		}
+		b.WriteString(styleFieldRequired.Render("*"))
+		b.WriteString(" ")
+		headerText := currentText + "▾"
+		b.WriteString(styleSelectExpandedHeader.Render(headerText))
 		b.WriteString("\n")
 
-		// 渲染选项列表（用边框包裹）
+		// 渲染选项列表（简洁边框）
 		var optionsBuilder strings.Builder
 		for i, opt := range s.Options {
 			if i == s.Selected {
@@ -284,16 +281,18 @@ func (s *SelectField) View(focused bool) string {
 				optionsBuilder.WriteString("\n")
 			}
 		}
-		// 为选项列表添加边框
-		optionsBox := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(colorPrimary).
-			Padding(0, 1).
-			Render(optionsBuilder.String())
-		b.WriteString(optionsBox)
+		b.WriteString(styleSelectDropdown.Render(optionsBuilder.String()))
 	} else {
-		// 收起状态：显示当前选项按钮
-		btnText := currentText + "   ▾"
+		// 收起状态：标签和下拉框在同一行
+		if focused {
+			b.WriteString(styleFieldLabelFocused.Render(s.Label))
+		} else {
+			b.WriteString(styleFieldLabel.Render(s.Label))
+		}
+		b.WriteString(styleFieldRequired.Render("*"))
+		b.WriteString(" ")
+
+		btnText := currentText + " ▾"
 		if focused {
 			b.WriteString(styleSelectBoxFocus.Render(btnText))
 		} else {
@@ -443,18 +442,6 @@ type NumberField struct {
 	Input textinput.Model
 }
 
-// NewNumberField 创建一个新的数字输入字段
-func NewNumberField(label, key, defaultValue string) *NumberField {
-	ti := textinput.New()
-	ti.SetValue(defaultValue)
-	ti.Width = 10
-	return &NumberField{
-		Label: label,
-		Key:   key,
-		Input: ti,
-	}
-}
-
 // View 渲染数字输入字段
 func (n *NumberField) View(focused bool) string {
 	var b strings.Builder
@@ -465,9 +452,10 @@ func (n *NumberField) View(focused bool) string {
 	} else {
 		b.WriteString(styleFieldLabel.Render(n.Label))
 	}
-	b.WriteString(styleFieldRequired.Render(" *"))
+	b.WriteString(styleFieldRequired.Render("*"))
 	b.WriteString("\n")
 
+	// 渲染输入框
 	if focused {
 		b.WriteString(styleInputFocus.Render(n.Input.View()))
 	} else {
@@ -562,14 +550,14 @@ func NewTextAreaField(label, key, placeholder string, required bool) *TextAreaFi
 func (t *TextAreaField) View(focused bool) string {
 	var b strings.Builder
 
-	// 渲染标签
+	// 渲染标签和输入框在同一行开始
 	if focused {
 		b.WriteString(styleFieldLabelFocused.Render(t.Label))
 	} else {
 		b.WriteString(styleFieldLabel.Render(t.Label))
 	}
 	if t.Required {
-		b.WriteString(styleFieldRequired.Render(" *"))
+		b.WriteString(styleFieldRequired.Render("*"))
 	}
 	b.WriteString("\n")
 
@@ -640,233 +628,14 @@ func (t *TextAreaField) Focus() {
 func (t *TextAreaField) Blur() {
 	t.TextArea.Blur()
 }
-type URLField struct {
-	Label      string
-	Key        string
-	Protocol   *SelectField    // 协议下拉
-	Host       textinput.Model // 主机输入
-	Port       textinput.Model // 端口输入
-	focusIndex int             // 0=协议, 1=主机, 2=端口
-}
-
-// NewURLField 创建一个新的 URL 字段
-func NewURLField(label, key string) *URLField {
-	hostInput := textinput.New()
-	hostInput.Placeholder = "主机地址"
-	hostInput.Width = 30
-
-	portInput := textinput.New()
-	portInput.SetValue("80")
-	portInput.Width = 8
-
-	return &URLField{
-		Label:    label,
-		Key:      key,
-		Protocol: NewSelectField("", "", []string{"http", "https"}, 0),
-		Host:     hostInput,
-		Port:     portInput,
-	}
-}
-
-// View 渲染 URL 字段（一行：协议下拉 | 主机输入 | 端口输入）
-func (u *URLField) View(focused bool) string {
-	var b strings.Builder
-
-	// 渲染标签
-	if focused {
-		b.WriteString(styleFieldLabelFocused.Render(u.Label))
-	} else {
-		b.WriteString(styleFieldLabel.Render(u.Label))
-	}
-	b.WriteString(styleFieldRequired.Render(" *"))
-	b.WriteString("\n")
-
-	// 获取协议值
-	protocol := u.Protocol.Value()
-	host := u.Host.Value()
-	port := u.Port.Value()
-	if host == "" {
-		host = u.Host.Placeholder
-	}
-
-	// 检查协议下拉是否展开
-	if focused && u.Protocol.Expanded {
-		// 协议下拉展开时，只显示协议选择区域
-		// 渲染当前协议按钮
-		btnText := protocol + "   ▾"
-		b.WriteString(styleSelectExpanded.Render(btnText))
-		b.WriteString("\n")
-
-		// 渲染选项列表（用边框包裹）
-		var optionsBuilder strings.Builder
-		for i, opt := range u.Protocol.Options {
-			if i == u.Protocol.Selected {
-				optionsBuilder.WriteString(styleSelectOptionSelected.Render("► " + opt))
-			} else {
-				optionsBuilder.WriteString(styleSelectOption.Render("  " + opt))
-			}
-			if i < len(u.Protocol.Options)-1 {
-				optionsBuilder.WriteString("\n")
-			}
-		}
-		// 为选项列表添加边框，放置在按钮下方
-		optionsBox := lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(colorPrimary).
-			Padding(0, 1).
-			Render(optionsBuilder.String())
-		b.WriteString(optionsBox)
-	} else {
-		// 简单渲染：协议://主机:端口
-		var urlLine string
-		if focused {
-			// 根据焦点高亮不同部分
-			switch u.focusIndex {
-			case 0:
-				urlLine = styleInputFocus.Render(protocol) + "://" + host + ":" + port
-			case 1:
-				urlLine = protocol + "://" + styleInputFocus.Render(host) + ":" + port
-			case 2:
-				urlLine = protocol + "://" + host + ":" + styleInputFocus.Render(port)
-			}
-		} else {
-			urlLine = protocol + "://" + host + ":" + port
-		}
-
-		// 整体加一个边框
-		b.WriteString(styleInput.Render(urlLine))
-	}
-
-	return b.String()
-}
-
-// Update 处理消息更新 URL 字段
-func (u *URLField) Update(msg tea.Msg) (FormField, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		keys := DefaultKeyMap()
-
-		// 如果协议下拉展开，优先处理其事件
-		if u.Protocol.Expanded {
-			updated, c := u.Protocol.Update(msg)
-			if sf, ok := updated.(*SelectField); ok {
-				u.Protocol = sf
-			}
-			cmd = c
-			// 协议切换时自动调整端口
-			if !u.Protocol.Expanded {
-				if u.Protocol.Value() == "https" && u.Port.Value() == "80" {
-					u.Port.SetValue("443")
-				} else if u.Protocol.Value() == "http" && u.Port.Value() == "443" {
-					u.Port.SetValue("80")
-				}
-			}
-			return u, cmd
-		}
-
-		switch {
-		case key.Matches(msg, keys.Left):
-			// 如果协议下拉展开，收起它而不是移动焦点
-			if u.Protocol.Expanded {
-				u.Protocol.Expanded = false
-			} else if u.focusIndex > 0 {
-				u.focusIndex--
-			}
-		case key.Matches(msg, keys.Right):
-			// 如果协议下拉展开，收起它而不是移动焦点
-			if u.Protocol.Expanded {
-				u.Protocol.Expanded = false
-			} else if u.focusIndex < 2 {
-				u.focusIndex++
-			}
-		case key.Matches(msg, keys.Enter), key.Matches(msg, keys.Toggle):
-			if u.focusIndex == 0 {
-				u.Protocol.Expanded = true
-			}
-		default:
-			// 根据焦点更新对应的输入框
-			switch u.focusIndex {
-			case 0:
-				updated, c := u.Protocol.Update(msg)
-				if sf, ok := updated.(*SelectField); ok {
-					u.Protocol = sf
-				}
-				cmd = c
-			case 1:
-				u.Host, cmd = u.Host.Update(msg)
-			case 2:
-				// 只允许数字
-				if len(msg.String()) == 1 {
-					ch := msg.String()[0]
-					if ch < '0' || ch > '9' {
-						return u, nil
-					}
-				}
-				u.Port, cmd = u.Port.Update(msg)
-			}
-		}
-	}
-
-	return u, cmd
-}
-
-// Value 返回完整的 URL
-func (u *URLField) Value() string {
-	protocol := u.Protocol.Value()
-	host := u.Host.Value()
-	port := u.Port.Value()
-
-	if host == "" {
-		return ""
-	}
-
-	// 默认端口不显示
-	if (protocol == "http" && port == "80") || (protocol == "https" && port == "443") {
-		return fmt.Sprintf("%s://%s", protocol, host)
-	}
-	return fmt.Sprintf("%s://%s:%s", protocol, host, port)
-}
-
-// SetValue 解析 URL 并设置各子字段
-func (u *URLField) SetValue(value string) {
-	protocol, host, port := parseTargetURL(value)
-	u.Protocol.SetValue(protocol)
-	u.Host.SetValue(host)
-	u.Port.SetValue(port)
-}
-
-// GetLabel 返回字段标签
-func (u *URLField) GetLabel() string {
-	return u.Label
-}
-
-// GetKey 返回字段键名
-func (u *URLField) GetKey() string {
-	return u.Key
-}
-
-// IsRequired 返回是否必填
-func (u *URLField) IsRequired() bool {
-	return true
-}
-
-// Focus 聚焦 URL 字段
-func (u *URLField) Focus() {
-	u.focusIndex = 0
-}
-
-// Blur 取消聚焦 URL 字段
-func (u *URLField) Blur() {
-	u.Protocol.Expanded = false
-}
 
 // Form 表示一个包含多种字段类型的表单
 type Form struct {
 	title           string
 	fields          []FormField
 	focusIndex      int
+	focusOnButtons  bool // 焦点是否在按钮上
+	selectedButton  int // 0: 确认, 1: 取消
 	err             error
 	width           int
 	height          int
@@ -976,19 +745,18 @@ func (f *Form) Update(msg tea.Msg) (*Form, tea.Cmd) {
 					isSelectExpanded = true
 					break
 				}
-				// 检查 URLField 中的协议下拉是否展开
-				if uf, ok := field.(*URLField); ok && uf.Protocol.Expanded {
-					isSelectExpanded = true
-					break
-				}
 			}
 		}
 
 		// 如果下拉框展开，让字段自己处理上下键
-		if !isSelectExpanded {
-			// 检查当前聚焦的字段是否是TextAreaField
-			// 如果是TextAreaField，让Enter键传递给它处理（用于换行）
+		if !isSelectExpanded && !f.focusOnButtons {
+			// 检查当前聚焦的字段是否需要处理 Enter 键
+			// TextAreaField: Enter 用于换行
+			// SelectField/IDSelectField: Enter 用于展开/收起下拉框
 			_, isTextArea := currentVisibleField.(*TextAreaField)
+			_, isSelect := currentVisibleField.(*SelectField)
+			_, isIDSelect := currentVisibleField.(*IDSelectField)
+			needsEnter := isTextArea || isSelect || isIDSelect
 
 			switch {
 			case key.Matches(msg, f.keys.Up):
@@ -1002,32 +770,66 @@ func (f *Form) Update(msg tea.Msg) (*Form, tea.Cmd) {
 					visible[f.focusIndex].Blur()
 					f.focusIndex++
 					visible[f.focusIndex].Focus()
+				} else {
+					// 在最后一个字段，切换到按钮
+					visible[f.focusIndex].Blur()
+					f.focusOnButtons = true
+					f.selectedButton = 0 // 默认选中确认按钮
 				}
 			case key.Matches(msg, f.keys.Enter):
-				// 如果是TextAreaField，让Enter键传递给字段处理（换行）
-				// 否则验证并提交表单
-				if !isTextArea {
-					// 验证并提交
-					return f, nil
+				// 如果字段需要处理 Enter 键，让事件传递给字段处理
+				// 否则移动到下一个字段或按钮区域（不自动提交）
+				if !needsEnter {
+					// 移动到下一个字段或按钮
+					if f.focusIndex < len(visible)-1 {
+						visible[f.focusIndex].Blur()
+						f.focusIndex++
+						visible[f.focusIndex].Focus()
+					} else {
+						// 在最后一个字段，切换到按钮
+						visible[f.focusIndex].Blur()
+						f.focusOnButtons = true
+						f.selectedButton = 0 // 默认选中确认按钮
+					}
 				}
+			}
+		} else if f.focusOnButtons {
+			// 焦点在按钮上
+			switch {
+			case key.Matches(msg, f.keys.Up):
+				// 返回到最后一个字段
+				f.focusOnButtons = false
+				f.focusIndex = len(visible) - 1
+				visible[f.focusIndex].Focus()
+			case key.Matches(msg, f.keys.Left):
+				if f.selectedButton > 0 {
+					f.selectedButton--
+				}
+			case key.Matches(msg, f.keys.Right, f.keys.Tab):
+				if f.selectedButton < 1 {
+					f.selectedButton++
+				}
+			// Enter 键不在这里处理，让 handleFormKeys 处理
 			}
 		}
 	}
 
-	// 更新当前聚焦的可见字段
-	var cmd tea.Cmd
-	visible[f.focusIndex], cmd = visible[f.focusIndex].Update(msg)
+	// 更新当前聚焦的可见字段（如果焦点不在按钮上）
+	if !f.focusOnButtons {
+		var cmd tea.Cmd
+		visible[f.focusIndex], cmd = visible[f.focusIndex].Update(msg)
 
-	// 同步更新到原始字段列表
-	// 找到可见字段在原始字段列表中的索引并更新
-	visibleKey := visible[f.focusIndex].GetKey()
-	for i, field := range f.fields {
-		if field.GetKey() == visibleKey {
-			f.fields[i] = visible[f.focusIndex]
-			break
+		// 同步更新到原始字段列表
+		// 找到可见字段在原始字段列表中的索引并更新
+		visibleKey := visible[f.focusIndex].GetKey()
+		for i, field := range f.fields {
+			if field.GetKey() == visibleKey {
+				f.fields[i] = visible[f.focusIndex]
+				break
+			}
 		}
+		cmds = append(cmds, cmd)
 	}
-	cmds = append(cmds, cmd)
 
 	return f, tea.Batch(cmds...)
 }
@@ -1058,29 +860,37 @@ func (f *Form) View() string {
 	// 用于更精确的滚动计算
 	fieldHeights := make([]int, len(visible))
 	for i, field := range visible {
-		// 估算字段高度：标签(1行) + 输入区域 + 空行(2行)
-		baseHeight := 3 // 标签 + 空行
+		// 估算字段高度
+		baseHeight := 2 // 普通字段：1行内容 + 1行间距
 		switch field.(type) {
 		case *TextAreaField:
-			baseHeight += 3 // TextArea 默认 3 行
-		case *SelectField, *IDSelectField:
-			baseHeight += 1 // 下拉框大约 1 行
+			// TextArea: label行 + 多行输入区域
+			baseHeight = 1 + 3 // label行 + 默认3行TextArea
+		case *SelectField:
+			// SelectField 展开时需要更多行
+			if sf, ok := field.(*SelectField); ok && sf.Expanded {
+				baseHeight = 1 + len(sf.Options) + 1 // label行 + 选项列表 + 边距
+			}
+		case *IDSelectField:
+			// IDSelectField 展开时需要更多行
+			if isf, ok := field.(*IDSelectField); ok && isf.Expanded {
+				baseHeight = 1 + len(isf.Options) + 1
+			}
 		case *ChoiceFieldWrapper, *IDChoiceField:
-			// ChoiceField 可能有多行选项
-			baseHeight += 2
-		default:
-			baseHeight += 1 // 普通输入框
+			// ChoiceField: label行 + 选项行(可能有换行)
+			baseHeight = 3 // label行 + 选项行 + 间距
 		}
 		fieldHeights[i] = baseHeight
 	}
 
 	// 标题和帮助行的固定高度
-	titleLines := 2 // 标题 + 空行
-	helpLines := 1  // 底部帮助
+	titleLines := 2           // 标题 + 空行
+	helpLines := 1            // 底部帮助
+	buttonLines := 3          // 按钮（1行） + 空行（2行）
 	scrollIndicatorLines := 2 // 滚动指示器（如果有）
 
 	// 计算可用高度
-	availableHeight := f.height - titleLines - helpLines
+	availableHeight := f.height - titleLines - helpLines - buttonLines
 	if availableHeight < 10 {
 		availableHeight = 10
 	}
@@ -1149,7 +959,7 @@ func (f *Form) View() string {
 	for i := startIdx; i < endIdx; i++ {
 		field := visible[i]
 		b.WriteString(field.View(i == f.focusIndex))
-		b.WriteString("\n\n")
+		b.WriteString("\n")
 	}
 
 	// 渲染滚动指示器（如果有隐藏字段在下方）
@@ -1158,12 +968,49 @@ func (f *Form) View() string {
 		b.WriteString("\n")
 	}
 
-	// 渲染帮助提示
-	// 如果当前聚焦的是TextAreaField，显示不同的提示
-	if _, isTextArea := visible[f.focusIndex].(*TextAreaField); isTextArea {
-		b.WriteString(styleFormHelp.Render("↑↓ 导航   Enter 换行   Tab 下一字段   Esc 取消"))
+	// 渲染按钮
+	b.WriteString("\n")
+	confirmBtn := " [ 确认 ] "
+	cancelBtn := " [ 取消 ] "
+
+	if f.focusOnButtons {
+		if f.selectedButton == 0 {
+			confirmBtn = styleButtonSelected.Render(" [ 确认 ] ")
+			cancelBtn = styleButton.Render(" [ 取消 ] ")
+		} else {
+			confirmBtn = styleButton.Render(" [ 确认 ] ")
+			cancelBtn = styleButtonSelected.Render(" [ 取消 ] ")
+		}
 	} else {
-		b.WriteString(styleFormHelp.Render("↑↓ 导航   ←→ 切换选项   Enter 确认   Esc 取消"))
+		confirmBtn = styleButton.Render(" [ 确认 ] ")
+		cancelBtn = styleButton.Render(" [ 取消 ] ")
+	}
+
+	b.WriteString("  ")
+	b.WriteString(confirmBtn)
+	b.WriteString("  ")
+	b.WriteString(cancelBtn)
+	b.WriteString("\n\n")
+
+	// 渲染帮助提示
+	// 根据当前聚焦的字段类型显示不同的提示
+	if f.focusOnButtons {
+		b.WriteString(styleFormHelp.Render("←→ 切换按钮   Enter 确认   Esc 取消"))
+	} else {
+		currentField := visible[f.focusIndex]
+
+		if _, isTextArea := currentField.(*TextAreaField); isTextArea {
+			b.WriteString(styleFormHelp.Render("↑↓ 导航   Enter 换行   Tab 下一字段   Esc 取消"))
+		} else if f.HasExpandedSelect() {
+			// 下拉列表展开时
+			b.WriteString(styleFormHelp.Render("↑↓ 选择   Enter 确认   Esc 收起"))
+		} else if _, isSelect := currentField.(*SelectField); isSelect {
+			b.WriteString(styleFormHelp.Render("↑↓ 导航   Space 展开列表   Tab 下一字段   Esc 取消"))
+		} else if _, isIDSelect := currentField.(*IDSelectField); isIDSelect {
+			b.WriteString(styleFormHelp.Render("↑↓ 导航   Space 展开列表   Tab 下一字段   Esc 取消"))
+		} else {
+			b.WriteString(styleFormHelp.Render("↑↓ 导航   ←→ 切换选项   Tab 下一字段   Esc 取消"))
+		}
 	}
 
 	return b.String()
@@ -1203,6 +1050,16 @@ func (f *Form) Validate() error {
 	return nil
 }
 
+// IsCancelled 检查用户是否选择了取消按钮
+func (f *Form) IsCancelled() bool {
+	return f.focusOnButtons && f.selectedButton == 1
+}
+
+// IsConfirmed 检查用户是否选择了确认按钮
+func (f *Form) IsConfirmed() bool {
+	return f.focusOnButtons && f.selectedButton == 0
+}
+
 // HasExpandedSelect 检查当前聚焦的字段是否是展开的下拉选择框
 func (f *Form) HasExpandedSelect() bool {
 	visible := f.visibleFields()
@@ -1222,10 +1079,6 @@ func (f *Form) HasExpandedSelect() bool {
 			}
 			// 检查 IDSelectField
 			if isf, ok := field.(*IDSelectField); ok && isf.Expanded {
-				return true
-			}
-			// 检查 URLField 中的协议下拉
-			if uf, ok := field.(*URLField); ok && uf.Protocol.Expanded {
 				return true
 			}
 		}

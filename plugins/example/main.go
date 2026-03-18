@@ -4,10 +4,12 @@
 // 插件通过路径前缀匹配请求，并提取租户标识符。
 //
 // 构建命令:
-//   go build -o example-plugin .
+//
+//	go build -o example-plugin .
 //
 // 使用方法:
-//   将编译后的二进制文件放到插件目录中，Prism 会自动加载。
+//
+//	将编译后的二进制文件放到插件目录中，Prism 会自动加载。
 package main
 
 import (
@@ -15,15 +17,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rfancn/prism/plugin"
+	plugin2 "github.com/rfancn/prism/pkg/plugin"
 )
 
 // ExamplePlugin 示例插件实现
 type ExamplePlugin struct{}
 
 // Info 返回插件信息
-func (p *ExamplePlugin) Info(ctx context.Context) (*plugin.PluginInfo, error) {
-	return &plugin.PluginInfo{
+func (p *ExamplePlugin) Info(ctx context.Context) (*plugin2.PluginInfo, error) {
+	return &plugin2.PluginInfo{
 		Name:        "example-plugin",
 		Description: "示例路由插件，通过路径前缀匹配请求",
 		Version:     "1.0.0",
@@ -36,17 +38,17 @@ func (p *ExamplePlugin) Info(ctx context.Context) (*plugin.PluginInfo, error) {
 // - 匹配路径以 /api/tenant/ 开头的请求
 // - 从路径中提取租户ID
 // - 支持特定请求头过滤
-func (p *ExamplePlugin) Match(ctx context.Context, req *plugin.MatchRequest) (*plugin.MatchResponse, error) {
+func (p *ExamplePlugin) Match(ctx context.Context, req *plugin2.MatchRequest) (*plugin2.MatchResponse, error) {
 	// 检查路径是否以 /api/tenant/ 开头
 	if !strings.HasPrefix(req.Path, "/api/tenant/") {
-		return &plugin.MatchResponse{
+		return &plugin2.MatchResponse{
 			Matched: false,
 		}, nil
 	}
 
 	// 检查请求方法（可选）
 	if req.Method != "GET" && req.Method != "POST" {
-		return &plugin.MatchResponse{
+		return &plugin2.MatchResponse{
 			Matched: false,
 			Error:   "只支持 GET 和 POST 请求",
 		}, nil
@@ -55,7 +57,7 @@ func (p *ExamplePlugin) Match(ctx context.Context, req *plugin.MatchRequest) (*p
 	// 检查特定的请求头（可选）
 	authHeader := req.Headers["Authorization"]
 	if authHeader == "" {
-		return &plugin.MatchResponse{
+		return &plugin2.MatchResponse{
 			Matched: false,
 			Error:   "缺少 Authorization 请求头",
 		}, nil
@@ -65,7 +67,7 @@ func (p *ExamplePlugin) Match(ctx context.Context, req *plugin.MatchRequest) (*p
 	// 路径格式: /api/tenant/{tenant_id}/...
 	pathParts := strings.Split(strings.TrimPrefix(req.Path, "/api/tenant/"), "/")
 	if len(pathParts) == 0 || pathParts[0] == "" {
-		return &plugin.MatchResponse{
+		return &plugin2.MatchResponse{
 			Matched: false,
 			Error:   "无法从路径中提取租户ID",
 		}, nil
@@ -74,7 +76,7 @@ func (p *ExamplePlugin) Match(ctx context.Context, req *plugin.MatchRequest) (*p
 	tenantID := pathParts[0]
 
 	// 返回匹配成功
-	return &plugin.MatchResponse{
+	return &plugin2.MatchResponse{
 		Matched: true,
 		Params: map[string]string{
 			"tenant_id": tenantID,
@@ -85,5 +87,5 @@ func (p *ExamplePlugin) Match(ctx context.Context, req *plugin.MatchRequest) (*p
 
 func main() {
 	// 启动插件服务
-	plugin.Serve(&ExamplePlugin{})
+	plugin2.Serve(&ExamplePlugin{})
 }

@@ -23,8 +23,8 @@ func NewLoader() *Loader {
 
 // LoadAll 加载所有路由配置
 func (l *Loader) LoadAll(ctx context.Context) (*RouterConfig, error) {
-	// 加载所有启用的来源
-	sources, err := l.queries.ListEnabledSources(ctx)
+	// 加载所有来源
+	sources, err := l.queries.ListSources(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +51,8 @@ func (l *Loader) LoadAll(ctx context.Context) (*RouterConfig, error) {
 
 // loadSource 加载来源配置
 func (l *Loader) loadSource(ctx context.Context, source *db.Source) (*SourceConfig, error) {
-	// 加载该来源下所有启用的项目
-	projects, err := l.queries.ListEnabledProjectsBySourceID(ctx, source.ID)
+	// 加载该来源下所有项目
+	projects, err := l.queries.ListProjectsBySourceID(ctx, source.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func (l *Loader) loadSource(ctx context.Context, source *db.Source) (*SourceConf
 
 // loadProject 加载项目配置
 func (l *Loader) loadProject(ctx context.Context, project *db.Project) (*ProjectConfig, error) {
-	// 加载该项目下所有启用的路由规则
-	rules, err := l.queries.ListEnabledRouteRulesByProjectID(ctx, project.ID)
+	// 加载该项目下所有路由规则
+	rules, err := l.queries.ListRouteRulesByProjectID(ctx, project.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -113,10 +113,10 @@ func (l *Loader) GetSourceByName(ctx context.Context, name string) (*db.Source, 
 
 // GetProjectsBySourceID 根据来源ID获取项目列表
 func (l *Loader) GetProjectsBySourceID(ctx context.Context, sourceID string) ([]*db.Project, error) {
-	return l.queries.ListEnabledProjectsBySourceID(ctx, sourceID)
+	return l.queries.ListProjectsBySourceID(ctx, sourceID)
 }
 
 // GetRulesByProjectID 根据项目ID获取路由规则列表
 func (l *Loader) GetRulesByProjectID(ctx context.Context, projectID string) ([]*db.RouteRule, error) {
-	return l.queries.ListEnabledRouteRulesByProjectID(ctx, projectID)
+	return l.queries.ListRouteRulesByProjectID(ctx, projectID)
 }

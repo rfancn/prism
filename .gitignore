@@ -34,3 +34,5 @@ go.work.sum
 .serena/
 autogen/
 prism.db
+logs/
+prism

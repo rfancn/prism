@@ -20,7 +20,10 @@ import (
 	"github.com/rfancn/prism/pkg/types"
 )
 
-const gracefulShutdownTime = 15 * time.Second
+const (
+	gracefulShutdownTime = 15 * time.Second
+	pluginPath           = "plugins"
+)
 
 // WebServer implements the Server interface using Gin.
 type WebServer struct {
@@ -32,10 +35,11 @@ type WebServer struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          *sync.WaitGroup
+	config      *g.AppConfig
 }
 
 // New creates a new web server.
-func New(address string, tlsConfig *types.ServerTLSConfig) (Server, error) {
+func New(appConfig *g.AppConfig, tlsConfig *types.ServerTLSConfig) (Server, error) {
 	// Initialize middlewares first
 	middleware.Initialize()
 
@@ -46,15 +50,30 @@ func New(address string, tlsConfig *types.ServerTLSConfig) (Server, error) {
 
 	engine := gin.New()
 
+	// Build address from config
+	host := appConfig.Server.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := appConfig.Server.Port
+	if port == 0 {
+		port = 8080
+	}
+	address := fmt.Sprintf("%s:%d", host, port)
+
 	// Create server
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	srv := &WebServer{
 		engine: engine,
+		config: appConfig,
 		httpServer: &http.Server{
-			Addr:    address,
-			Handler: engine,
+			Addr:         address,
+			Handler:      engine,
+			ReadTimeout:  time.Duration(appConfig.Proxy.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(appConfig.Proxy.WriteTimeout) * time.Second,
+			IdleTimeout:  time.Duration(appConfig.Proxy.IdleTimeout) * time.Second,
 		},
 		ctx:    ctx,
 		cancel: cancel,
@@ -72,9 +91,17 @@ func New(address string, tlsConfig *types.ServerTLSConfig) (Server, error) {
 		}
 
 		srv.tlsConfig = tlsConfig
+		tlsPort := appConfig.Server.TLSPort
+		if tlsPort == 0 {
+			tlsPort = 443
+		}
+		tlsAddress := fmt.Sprintf("%s:%d", host, tlsPort)
 		srv.httpsServer = &http.Server{
-			Addr:    address,
-			Handler: engine,
+			Addr:         tlsAddress,
+			Handler:      engine,
+			ReadTimeout:  time.Duration(appConfig.Proxy.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(appConfig.Proxy.WriteTimeout) * time.Second,
+			IdleTimeout:  time.Duration(appConfig.Proxy.IdleTimeout) * time.Second,
 		}
 		sdk.Logger().Info("TLS server configured", "cert", tlsConfig.CertFile, "key", tlsConfig.KeyFile)
 	}
@@ -104,14 +131,7 @@ func (s *WebServer) setupRoutes() error {
 	s.engine.GET("/ready", monitor.ReadyHandler())
 	s.engine.GET("/metrics", monitor.MetricsHandler())
 
-	// 创建路由管理器
-	pluginPaths := g.Config.App.Plugin.Paths
-	if len(pluginPaths) == 0 {
-		// 默认插件路径
-		pluginPaths = []string{"./plugins"}
-	}
-
-	s.router, err = router.NewRouter(pluginPaths)
+	s.router, err = router.NewRouter(pluginPath)
 	if err != nil {
 		return fmt.Errorf("failed to create router: %w", err)
 	}
@@ -127,13 +147,19 @@ func (s *WebServer) setupRoutes() error {
 		return fmt.Errorf("failed to load router config: %w", err)
 	}
 
-	// 注册路由处理器
-	// 使用通配符路由捕获所有请求，由 Router.Handler 处理匹配逻辑
-	// NoRoute 只能用于 gin.Engine，不能用于 RouterGroup
-	s.engine.NoRoute(s.router.Handler())
+	// 注册 param_path 类型的具体路由
+	if err := s.router.RegisterRoutes(s.engine); err != nil {
+		return fmt.Errorf("failed to register routes: %w", err)
+	}
+
+	// 注册兜底路由处理器
+	// 使用显式路由注册，捕获 /:source/*path 格式的请求
+	handler := s.router.Handler()
+	s.engine.GET("/:source/*path", handler)
+	s.engine.POST("/:source/*path", handler)
 
 	sdk.Logger().Info("routes configured with new router",
-		"plugin_paths", pluginPaths,
+		"plugin_path", pluginPath,
 	)
 
 	return nil

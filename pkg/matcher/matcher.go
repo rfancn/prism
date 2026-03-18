@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rfancn/prism/autogen/db"
 	"github.com/rfancn/prism/pkg/cel"
-	"github.com/rfancn/prism/plugin"
+	"github.com/rfancn/prism/pkg/plugin"
 )
 
 // Result 匹配结果
@@ -45,7 +45,7 @@ func NewFactory(celEngine *cel.Engine, pluginMgr *plugin.Manager) *Factory {
 // Create 根据匹配类型创建匹配器
 func (f *Factory) Create(matchType string) Matcher {
 	switch matchType {
-	case MatchTypeParamPath:
+	case MatchTypePathParam:
 		return &ParamPathMatcher{celEngine: f.celEngine}
 	case MatchTypeURLParam:
 		return &URLParamMatcher{celEngine: f.celEngine}
@@ -63,7 +63,7 @@ func (f *Factory) Create(matchType string) Matcher {
 // CreateWithEngine 创建带CEL引擎的匹配器（用于测试）
 func (f *Factory) CreateWithEngine(matchType string, celEngine *cel.Engine) Matcher {
 	switch matchType {
-	case MatchTypeParamPath:
+	case MatchTypePathParam:
 		return &ParamPathMatcher{celEngine: celEngine}
 	case MatchTypeURLParam:
 		return &URLParamMatcher{celEngine: celEngine}
@@ -80,8 +80,8 @@ func (f *Factory) CreateWithEngine(matchType string, celEngine *cel.Engine) Matc
 
 // 匹配类型常量
 const (
-	// MatchTypeParamPath 参数化路径匹配
-	MatchTypeParamPath = "param_path"
+	// MatchTypePathParam 参数化路径匹配
+	MatchTypePathParam = "param_path"
 	// MatchTypeURLParam URL参数匹配
 	MatchTypeURLParam = "url_param"
 	// MatchTypeRequestBody 请求体匹配（JSON）
@@ -95,7 +95,7 @@ const (
 // ValidMatchTypes 返回所有有效的匹配类型
 func ValidMatchTypes() []string {
 	return []string{
-		MatchTypeParamPath,
+		MatchTypePathParam,
 		MatchTypeURLParam,
 		MatchTypeRequestBody,
 		MatchTypeRequestForm,

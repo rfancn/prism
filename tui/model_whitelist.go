@@ -119,7 +119,25 @@ func (m *WhitelistModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case StateForm:
 			switch {
 			case key.Matches(msg, m.keys.Enter):
-				return m, m.saveEntry()
+				// 检查是否有展开的下拉框或当前聚焦的是TextArea
+				if m.form != nil && (m.form.HasExpandedSelect() || m.form.IsTextAreaFocused()) {
+					break
+				}
+				// 焦点不在按钮上时，不处理 Enter 键（让 Form.Update 处理导航）
+				if m.form != nil && !m.form.focusOnButtons {
+					break
+				}
+				// 检查是否点击取消按钮
+				if m.form != nil && m.form.IsCancelled() {
+					m.state = StateList
+					m.form = nil
+					return m, nil
+				}
+				// 焦点在确认按钮上才保存
+				if m.form != nil && m.form.IsConfirmed() {
+					return m, m.saveEntry()
+				}
+				return m, nil
 			case key.Matches(msg, m.keys.Esc):
 				m.state = StateList
 				m.form = nil

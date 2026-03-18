@@ -5,17 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rfancn/prism/autogen/db"
-	"github.com/rfancn/prism/plugin"
+	plugin2 "github.com/rfancn/prism/pkg/plugin"
 )
 
 // PluginMatcher 插件匹配器
 // 用于调用外部插件执行匹配逻辑
 type PluginMatcher struct {
-	pluginMgr *plugin.Manager
+	pluginMgr *plugin2.Manager
 }
 
 // NewPluginMatcher 创建插件匹配器
-func NewPluginMatcher(pluginMgr *plugin.Manager) *PluginMatcher {
+func NewPluginMatcher(pluginMgr *plugin2.Manager) *PluginMatcher {
 	return &PluginMatcher{
 		pluginMgr: pluginMgr,
 	}
@@ -74,7 +74,7 @@ func (m *PluginMatcher) Match(c *gin.Context, rule *db.RouteRule) Result {
 }
 
 // buildMatchRequest 构建插件匹配请求
-func buildMatchRequest(c *gin.Context) *plugin.MatchRequest {
+func buildMatchRequest(c *gin.Context) *plugin2.MatchRequest {
 	// 获取请求体
 	body := []byte{}
 	if c.Request.Body != nil {
@@ -87,7 +87,7 @@ func buildMatchRequest(c *gin.Context) *plugin.MatchRequest {
 	}
 
 	// 构建请求
-	req := &plugin.MatchRequest{
+	req := &plugin2.MatchRequest{
 		Method:     c.Request.Method,
 		Headers:    getHeaders(c),
 		URLParams:  getURLParams(c),

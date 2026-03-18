@@ -1,19 +1,18 @@
--- Schema for Prism HTTP/HTTPS request relay tool
--- SQLite database schema
+-- 初始化数据库schema
 
 -- ============================================================
--- IP whitelist table: stores allowed IP addresses/CIDR ranges
+-- IP白名单表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ip_whitelist (
     id TEXT PRIMARY KEY,
-    ip_cidr TEXT NOT NULL UNIQUE,              -- IP address or CIDR range
+    ip_cidr TEXT NOT NULL UNIQUE,
     description TEXT,
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================
--- TLS configuration
+-- TLS配置表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tls_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -21,17 +20,17 @@ CREATE TABLE IF NOT EXISTS tls_config (
     cert_file TEXT,
     key_file TEXT,
     auto_cert INTEGER DEFAULT 0,
-    domains TEXT,                              -- Comma-separated domains for auto-cert
+    domains TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================
--- 1. 来源表：存储请求来源
+-- 来源表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS source (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,          -- 来源名称，如 weixin, kdniao
+    name TEXT NOT NULL UNIQUE,
     description TEXT,
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -39,64 +38,55 @@ CREATE TABLE IF NOT EXISTS source (
 );
 
 -- ============================================================
--- 2. 项目表：每个来源下可配置多个项目
+-- 项目表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
-    source_id TEXT NOT NULL,            -- 关联来源
-    name TEXT NOT NULL,                 -- 项目名称
+    source_id TEXT NOT NULL,
+    name TEXT NOT NULL,
     description TEXT,
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (source_id) REFERENCES source(id) ON DELETE CASCADE,
-    UNIQUE(source_id, name)             -- 同一来源下项目名唯一
+    UNIQUE(source_id, name)
 );
 
 -- ============================================================
--- 3. 路由规则表
+-- 路由规则表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS route_rule (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,           -- 关联项目
-    name TEXT NOT NULL,                 -- 规则名称
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
     match_type TEXT NOT NULL CHECK (match_type IN (
-        'param_path',      -- 参数化路径匹配
-        'url_param',       -- URL参数匹配
-        'request_body',    -- 请求内容匹配
-        'request_form',    -- 请求表单匹配
-        'plugin'           -- 插件模式
+        'param_path',
+        'url_param',
+        'request_body',
+        'request_form',
+        'plugin'
     )),
-
-    -- 参数化路径匹配专用字段
-    path_pattern TEXT,                  -- 带参数的路径，如 /users/{id}/orders/{orderId}
-
-    -- CEL表达式（用于所有内置模式）
-    cel_expression TEXT,                -- CEL表达式
-
-    -- 插件模式专用字段
-    plugin_name TEXT,                   -- 插件名称
-
-    -- 目标配置
-    target_url TEXT NOT NULL,           -- 目标URL
-
+    path_pattern TEXT,
+    cel_expression TEXT,
+    plugin_name TEXT,
+    target_url TEXT NOT NULL,
     enabled INTEGER DEFAULT 1,
-    priority INTEGER DEFAULT 0,         -- 匹配优先级（数字越小优先级越高）
+    priority INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE,
-    UNIQUE(project_id, name)            -- 同一项目下规则名唯一
+    UNIQUE(project_id, name)
 );
 
 -- ============================================================
--- 4. 插件注册表
+-- 插件注册表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS plugin_registry (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,          -- 插件名称
-    description TEXT,                   -- 插件描述
-    version TEXT,                       -- 插件版本
-    command TEXT NOT NULL,              -- 插件可执行文件路径或命令
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    version TEXT,
+    command TEXT NOT NULL,
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

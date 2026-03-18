@@ -9,17 +9,14 @@ SELECT * FROM source WHERE name = ?;
 -- name: ListSources :many
 SELECT * FROM source ORDER BY created_at DESC;
 
--- name: ListEnabledSources :many
-SELECT * FROM source WHERE enabled = 1 ORDER BY created_at DESC;
-
 -- name: CreateSource :one
-INSERT INTO source (id, name, description, enabled)
-VALUES (?, ?, ?, ?)
+INSERT INTO source (id, name, description)
+VALUES (?, ?, ?)
 RETURNING *;
 
 -- name: UpdateSource :one
 UPDATE source
-SET name = ?, description = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 

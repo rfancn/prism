@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS source (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,          -- 来源名称，如 weixin, kdniao
     description TEXT,
-    enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -55,7 +54,8 @@ CREATE TABLE IF NOT EXISTS project (
     source_id TEXT NOT NULL,            -- 关联来源
     name TEXT NOT NULL,                 -- 项目名称
     description TEXT,
-    enabled INTEGER DEFAULT 1,
+    target_url TEXT,                    -- 目标URL
+    priority INTEGER DEFAULT 0,         -- 项目优先级（数字越小优先级越高）
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (source_id) REFERENCES source(id) ON DELETE CASCADE,
@@ -86,10 +86,6 @@ CREATE TABLE IF NOT EXISTS route_rule (
     -- 插件模式专用字段
     plugin_name TEXT,                   -- 插件名称
 
-    -- 目标配置
-    target_url TEXT NOT NULL,           -- 目标URL
-
-    enabled INTEGER DEFAULT 1,
     priority INTEGER DEFAULT 0,         -- 匹配优先级（数字越小优先级越高）
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -106,7 +102,6 @@ CREATE TABLE IF NOT EXISTS plugin_registry (
     description TEXT,                   -- 插件描述
     version TEXT,                       -- 插件版本
     command TEXT NOT NULL,              -- 插件可执行文件路径或命令
-    enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -115,10 +110,19 @@ CREATE TABLE IF NOT EXISTS plugin_registry (
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_whitelist_ip ON ip_whitelist(ip_cidr);
 CREATE INDEX IF NOT EXISTS idx_whitelist_enabled ON ip_whitelist(enabled);
-CREATE INDEX IF NOT EXISTS idx_source_enabled ON source(enabled);
 CREATE INDEX IF NOT EXISTS idx_project_source_id ON project(source_id);
-CREATE INDEX IF NOT EXISTS idx_project_enabled ON project(enabled);
+CREATE INDEX IF NOT EXISTS idx_project_priority ON project(priority);
 CREATE INDEX IF NOT EXISTS idx_route_rule_project_id ON route_rule(project_id);
-CREATE INDEX IF NOT EXISTS idx_route_rule_enabled ON route_rule(enabled);
 CREATE INDEX IF NOT EXISTS idx_route_rule_priority ON route_rule(priority);
 CREATE INDEX IF NOT EXISTS idx_plugin_registry_name ON plugin_registry(name);
+
+-- ============================================================
+-- 应用配置表：存储应用级别的配置项
+-- ============================================================
+CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    value_type TEXT NOT NULL DEFAULT 'string',
+    description TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

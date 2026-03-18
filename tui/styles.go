@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/rfancn/prism/autogen/db"
 )
 
 // Define colors - 柔和现代配色方案
@@ -19,12 +20,6 @@ var (
 	colorText    = lipgloss.Color("#FAFAFA") // 主文字颜色
 	colorMuted   = lipgloss.Color("#6B7280") // 灰色文字
 	colorBorder  = lipgloss.Color("#3C3C3C") // 边框颜色
-
-	// 标题样式
-	styleTitle = lipgloss.NewStyle().
-			Foreground(colorPrimary).
-			Bold(true).
-			Padding(0, 1)
 
 	// Tab 样式 - 简洁风格
 	styleTab = lipgloss.NewStyle().
@@ -53,6 +48,11 @@ var (
 	styleItemSelected = lipgloss.NewStyle().
 				Foreground(colorText).
 				Background(lipgloss.Color("#1E3A5F")).
+				Bold(true)
+
+	// 区块标题样式
+	styleSectionTitle = lipgloss.NewStyle().
+				Foreground(colorPrimary).
 				Bold(true)
 
 	styleHelp = lipgloss.NewStyle().
@@ -105,12 +105,19 @@ var (
 	styleSelectBox = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(colorBorder).
-			Padding(0, 1).
-			Width(30)
+			Padding(0, 1)
 
 	styleSelectBoxFocus = styleSelectBox.Copy().BorderForeground(colorPrimary)
 
-	styleSelectExpanded = styleSelectBox.Copy().BorderForeground(colorPrimary)
+	// 展开状态的标题（无边框，简洁）
+	styleSelectExpandedHeader = lipgloss.NewStyle().
+					Foreground(colorPrimary).
+					Bold(true)
+
+	// 下拉选项列表（紧凑边框）
+	styleSelectDropdown = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colorPrimary)
 
 	styleSelectOption = lipgloss.NewStyle().
 				Foreground(colorMuted)
@@ -152,6 +159,17 @@ var (
 			Foreground(colorMuted).
 			Padding(0, 1).
 			MarginTop(1)
+
+	// 按钮样式
+	styleButton = lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Padding(0, 1)
+
+	styleButtonSelected = lipgloss.NewStyle().
+				Foreground(colorText).
+				Background(colorPrimary).
+				Padding(0, 1).
+				Bold(true)
 )
 
 // MenuItem represents a menu item
@@ -189,6 +207,7 @@ type KeyMap struct {
 	Edit   key.Binding
 	Delete key.Binding
 	Toggle key.Binding
+	Rules  key.Binding
 }
 
 // DefaultKeyMap returns default key bindings
@@ -242,6 +261,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys(" "),
 			key.WithHelp("space", "切换"),
 		),
+		Rules: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "管理规则"),
+		),
 	}
 }
 
@@ -255,6 +278,13 @@ type (
 	MsgRefresh struct{}
 	// MsgTabChange is a tab change request
 	MsgTabChange struct{ Tab string }
+	// MsgManageRules is a request to manage rules for a project
+	MsgManageRules struct {
+		SourceName string
+		Project    *db.Project
+	}
+	// MsgProjectRulesLoaded 项目规则加载完成消息（用于项目编辑界面）
+	MsgProjectRulesLoaded struct{ Rules []*db.RouteRule }
 )
 
 // SendError sends an error message

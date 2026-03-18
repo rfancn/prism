@@ -20,11 +20,15 @@ go build -o prism .
 # or
 make build
 
-# Run tests (all packages)
+# Run all tests
 go test ./...
 
 # Run tests with verbose output
 go test -v ./...
+
+# Run a single test (e.g., specific package or function)
+go test ./pkg/cel/... -v
+go test -run TestEngineEvaluate ./pkg/cel/...
 
 # Generate sqlc code (after modifying SQL schema/queries)
 go generate ./...
@@ -32,11 +36,20 @@ go generate ./...
 # Run linter
 go vet ./...
 
-# Run the service
-./prism run -c prism.toml
+# Run the service (use default database path: prism.db)
+./prism run
+
+# Run the service with custom database path
+./prism run --db /path/to/custom.db
+
+# Run with custom host/port (overrides database config)
+./prism run --host 0.0.0.0 --port 8080
 
 # Run TUI management interface
 ./prism tui
+
+# Run TUI with custom database path
+./prism tui --db /path/to/custom.db
 ```
 
 **Note**: 在国内网络环境下，需要设置 Go 代理：
@@ -46,9 +59,9 @@ export GOPROXY=https://goproxy.cn,direct
 
 ## Key Dependencies
 
-- **SDK**: `github.com/hdget/sdk v0.5.1` - provides Logger and DB access via `sdk.Logger()` and `sdk.Db()`
+- **SDK**: `github.com/hdget/sdk v0.5.2` - provides Logger and DB access via `sdk.Logger()` and `sdk.Db()`
 - **HTTP Framework**: `github.com/gin-gonic/gin` - HTTP server and routing
-- **Database**: SQLite with sqlc code generation (`github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.2`)
+- **Database**: SQLite with sqlc code generation (`github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.3`)
 - **CLI**: `github.com/spf13/cobra` - command-line interface
 - **TUI**: `github.com/charmbracelet/bubbletea` - terminal UI framework
 - **Monitoring**: `github.com/prometheus/client_golang` - metrics exposition
@@ -137,9 +150,10 @@ Source (来源)
 
 ### Directory Structure
 
-- `cmd/` - Cobra CLI commands (`run`, `tui`, `route`, `apikey`, `version`, `migrations`)
+- `cmd/` - Cobra CLI commands (`run`, `tui`, `route`, `version`)
 - `g/` - Global configuration structures (`g.Config`) and constants
 - `pkg/` - Core packages:
+  - `config/` - Configuration management (load from database)
   - `router/` - Three-layer routing, matching, and forwarding
   - `matcher/` - Request matcher implementations (5 types)
   - `cel/` - CEL expression engine with sandbox security
@@ -148,41 +162,57 @@ Source (来源)
   - `server/` - Gin HTTP server setup and route registration
   - `monitor/` - Prometheus metrics and health endpoints
   - `types/` - Shared types across packages (TLS config)
-- `tui/` - Bubble Tea TUI application (models for routes, apikeys, whitelist)
+- `tui/` - Bubble Tea TUI application
+  - `app.go` - Main TUI application entry point
+  - `list.go`, `choice.go`, `form.go` - Reusable UI components
+  - `model_*.go` - Feature-specific models (sources, projects, route_rules, whitelist)
 - `repository/` - Data access layer using `repository.New()` for `db.Queries`
 - `plugin/` - Plugin system implementation
   - `interface.go` - RouterPlugin interface definition
   - `manager.go` - Plugin lifecycle management
   - `client.go` / `server.go` - gRPC communication
-- `assets/` - SQL schema (`schema/`) and queries (`queries/`) for sqlc
+- `assets/` - SQL schema (`schema/`) and queries (`queries/`) for sqlc; migrations (`migrations/`)
 - `autogen/db/` - sqlc-generated code (do not edit manually)
 - `docs/` - Documentation files
 
 ### Configuration Structure
 
-Config is split into `[sdk]` and `[app]` sections in TOML:
+**配置已完全迁移到数据库**，不再使用配置文件。
 
-- `[sdk]` - SDK-level config (logging, database)
-- `[app]` - Application config (server, proxy, routes, rate limiting)
+**数据库路径**：通过命令行参数 `--db` 指定，默认为 `prism.db`
 
-Access via `g.Config` global variable after loading. Config structs use `mapstructure` tags for TOML binding.
+**配置优先级**：命令行参数 > 数据库配置 > 默认值
+
+**配置表 `app_config`**：
+| Key | 默认值 | 说明 |
+|-----|--------|------|
+| `server.host` | `0.0.0.0` | 服务监听主机地址 |
+| `server.port` | `8080` | HTTP 服务端口 |
+| `server.tls_port` | `8443` | HTTPS 服务端口 |
+| `proxy.read_timeout` | `30` | 代理读超时（秒）|
+| `proxy.write_timeout` | `30` | 代理写超时（秒）|
+| `proxy.idle_timeout` | `120` | 代理空闲超时（秒）|
+
+Access via `g.Config` global variable after loading. Config structs use `mapstructure` tags.
 
 ### Database Schema
 
 Key tables (see `assets/schema/schema.sql`):
 
-**Legacy Tables:**
-- `route` - Legacy routing patterns (deprecated, use route_rule)
+**System Tables:**
+- `global_config` - System-wide key-value settings (e.g., `ip_whitelist_enabled`)
+- `app_config` - Application config (server, proxy settings)
 - `ip_whitelist` - IP/CIDR whitelist entries
-- `api_key` - API keys with user_id for rate limiting
 - `tls_config` - TLS certificates and auto-cert settings
 
-**New Tables (v2):**
+**Routing Tables (v2):**
 - `source` - Request sources (weixin, kdniao, etc.)
 - `project` - Projects under each source
 - `route_rule` - Routing rules with match_type, CEL expressions
 - `plugin_registry` - Plugin registration (name, command path)
-- `header` - Custom headers per route rule (cascade delete)
+
+**Global Config Keys:**
+- `ip_whitelist_enabled` - Controls IP whitelist feature on/off (values: "true"/"false")
 
 ### CEL Expression Engine
 
@@ -241,6 +271,46 @@ middleware.Initialize(&middleware.Config{
 })
 ```
 
+### Global Configuration
+
+System-wide settings are stored in `global_config` table and accessed via repository:
+
+```go
+// Get config value
+config, err := queries.GetGlobalConfig(ctx, "ip_whitelist_enabled")
+if config.Value == "true" {
+    // Feature is enabled
+}
+
+// Set config value
+err := queries.SetGlobalConfig(ctx, &db.SetGlobalConfigParams{
+    Key:   "ip_whitelist_enabled",
+    Value: "true",
+})
+```
+
+**IP Whitelist Feature Toggle:**
+- Key: `ip_whitelist_enabled`
+- When disabled (value != "true"), the whitelist middleware passes all requests
+- When enabled, only IPs in `ip_whitelist` table are allowed
+
+### Application Configuration
+
+Application config is stored in `app_config` table and accessed via `pkg/config`:
+
+```go
+import "github.com/rfancn/prism/pkg/config"
+
+// Load all app config
+configMgr := config.NewConfigManager()
+appConfig, err := configMgr.LoadAppConfig(ctx)
+// appConfig.Server.Host, appConfig.Server.Port, etc.
+
+// Get/Set individual config
+value, err := configMgr.GetConfig(ctx, "server.port")
+err = configMgr.SetConfig(ctx, "server.port", "9090")
+```
+
 ### Database Access
 
 Use `repository.New()` to get a `*db.Queries` instance:
@@ -272,8 +342,9 @@ SQL schemas are in `assets/schema/`. After modifying:
 
 - Use `sdk.Logger()` for logging (not standard log package)
 - Use `sdk.Db().My()` for database connection (wrapped by `repository.New()`)
-- Config uses `mapstructure` tags for TOML binding
+- Config uses `mapstructure` tags
 - Generated code lives in `autogen/` - never edit manually
 - Pattern conversion: `{tenant}` in config -> `:tenant` for Gin routing
 - Plugin binaries must be compiled with same Go version as main program
 - Windows is not supported due to Go plugin limitations
+- Default database path: `prism.db` (constant `g.DefaultDbPath`)

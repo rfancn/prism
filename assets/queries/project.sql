@@ -7,25 +7,19 @@ SELECT * FROM project WHERE id = ?;
 SELECT * FROM project WHERE source_id = ? AND name = ?;
 
 -- name: ListProjects :many
-SELECT * FROM project ORDER BY created_at DESC;
-
--- name: ListEnabledProjects :many
-SELECT * FROM project WHERE enabled = 1 ORDER BY created_at DESC;
+SELECT * FROM project ORDER BY source_id, priority ASC;
 
 -- name: ListProjectsBySourceID :many
-SELECT * FROM project WHERE source_id = ? ORDER BY created_at DESC;
-
--- name: ListEnabledProjectsBySourceID :many
-SELECT * FROM project WHERE source_id = ? AND enabled = 1 ORDER BY created_at DESC;
+SELECT * FROM project WHERE source_id = ? ORDER BY priority ASC;
 
 -- name: CreateProject :one
-INSERT INTO project (id, source_id, name, description, enabled)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO project (id, source_id, name, description, target_url, priority)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateProject :one
 UPDATE project
-SET name = ?, description = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP
+SET source_id = ?, name = ?, description = ?, target_url = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 

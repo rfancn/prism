@@ -32,18 +32,20 @@ var matchTypeLabels = map[string]string{
 
 // RouteRulesModel 管理路由规则列表
 type RouteRulesModel struct {
-	list         list.Model
-	rules        []*db.RouteRule
-	sources      []*db.Source         // 来源列表，用于选择器
-	projects     []*db.Project        // 项目列表，用于选择器
-	plugins      []*db.PluginRegistry // 插件列表
-	state        AppState
-	form         *Form
-	selected     *db.RouteRule
-	selectedProj *db.Project // 当前筛选的项目
-	width        int
-	height       int
-	keys         KeyMap
+	list              list.Model
+	rules             []*db.RouteRule
+	sources           []*db.Source         // 来源列表，用于选择器
+	projects          []*db.Project        // 项目列表，用于选择器
+	plugins           []*db.PluginRegistry // 插件列表
+	state             AppState
+	form              *Form
+	selected          *db.RouteRule
+	selectedProj      *db.Project // 当前筛选的项目
+	contextSourceName string      // 上下文：来源名称（用于显示）
+	contextProjName   string      // 上下文：项目名称（用于显示）
+	width             int
+	height            int
+	keys              KeyMap
 }
 
 // NewRouteRulesModel 创建一个新的路由规则模型
@@ -165,11 +167,13 @@ func (m *RouteRulesModel) loadRules() tea.Cmd {
 func (m *RouteRulesModel) refreshList() {
 	items := make([]list.Item, len(m.rules))
 	for i, r := range m.rules {
-		// 获取项目名称
+		// 获取项目名称和目标URL
 		projectName := "未知项目"
+		targetURL := ""
 		for _, p := range m.projects {
 			if p.ID == r.ProjectID {
 				projectName = p.Name
+				targetURL = p.TargetUrl.String
 				break
 			}
 		}
@@ -179,7 +183,7 @@ func (m *RouteRulesModel) refreshList() {
 		}
 		items[i] = MenuItem{
 			title:       fmt.Sprintf("%s/%s", projectName, r.Name),
-			description: fmt.Sprintf("[%s] %s", matchLabel, Truncate(r.TargetUrl, 40)),
+			description: fmt.Sprintf("[%s] %s", matchLabel, Truncate(targetURL, 40)),
 		}
 	}
 	m.list.SetItems(items)
@@ -227,10 +231,6 @@ func (m *RouteRulesModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = StateConfirm
 				}
 				return m, nil
-			case key.Matches(typedMsg, m.keys.Toggle):
-				if len(m.rules) > 0 && m.list.Index() < len(m.rules) {
-					return m, m.toggleRule(m.rules[m.list.Index()])
-				}
 			}
 
 		case StateForm:
@@ -240,7 +240,22 @@ func (m *RouteRulesModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.form != nil && (m.form.HasExpandedSelect() || m.form.IsTextAreaFocused()) {
 					break
 				}
-				return m, m.saveRule()
+				// 焦点不在按钮上时，不处理 Enter 键（让 Form.Update 处理导航）
+				if m.form != nil && !m.form.focusOnButtons {
+					break
+				}
+				// 检查是否点击取消按钮
+				if m.form != nil && m.form.IsCancelled() {
+					m.state = StateList
+					m.form = nil
+					m.selected = nil
+					return m, nil
+				}
+				// 焦点在确认按钮上才保存
+				if m.form != nil && m.form.IsConfirmed() {
+					return m, m.saveRule()
+				}
+				return m, nil
 			case key.Matches(typedMsg, m.keys.Esc):
 				m.state = StateList
 				m.form = nil
@@ -280,15 +295,33 @@ func (m *RouteRulesModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View 渲染模型
 func (m *RouteRulesModel) View() string {
+	// 构建上下文标题
+	contextTitle := ""
+	if m.contextSourceName != "" && m.contextProjName != "" {
+		contextTitle = fmt.Sprintf(" [%s/%s]", m.contextSourceName, m.contextProjName)
+	}
+
 	switch m.state {
 	case StateList:
+		// 如果有上下文，显示上下文信息
+		if contextTitle != "" {
+			header := Header(fmt.Sprintf("路由规则列表%s", contextTitle))
+			if len(m.rules) == 0 {
+				return header + "\n\n" + EmptyListMessage("暂无路由规则，按 'n' 创建新规则") + "\n\n" +
+					Help("n 新建", "e 编辑", "d 删除", "Esc 返回项目列表")
+			}
+			items := m.list.Items()
+			return header + "\n\n" + RenderSimpleList(items, m.list.Index(), m.height-8) +
+				"\n" + Help("n 新建", "e 编辑", "d 删除", "Esc 返回项目列表")
+		}
+
 		if len(m.rules) == 0 {
 			return EmptyListMessage("暂无路由规则，按 'n' 创建新规则") + "\n\n" +
-				Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+				Help("n 新建", "e 编辑", "d 删除")
 		}
 		items := m.list.Items()
 		return RenderSimpleList(items, m.list.Index(), m.height-5) +
-			"\n" + Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+			"\n" + Help("n 新建", "e 编辑", "d 删除")
 
 	case StateForm:
 		if m.form != nil {
@@ -309,34 +342,6 @@ func (m *RouteRulesModel) View() string {
 
 // showCreateForm 显示创建表单
 func (m *RouteRulesModel) showCreateForm() {
-	// 构建来源选项
-	sourceOptions := make([]string, len(m.sources))
-	sourceLabels := make([]string, len(m.sources))
-	for i, s := range m.sources {
-		sourceOptions[i] = s.ID
-		sourceLabels[i] = s.Name
-	}
-
-	// 构建项目选项（显示格式：来源/项目）
-	projectOptions := make([]string, len(m.projects))
-	projectLabels := make([]string, len(m.projects))
-	defaultProjectIndex := 0
-	for i, p := range m.projects {
-		projectOptions[i] = p.ID
-		// 查找项目所属来源名称
-		sourceName := "未知来源"
-		for _, s := range m.sources {
-			if s.ID == p.SourceID {
-				sourceName = s.Name
-				break
-			}
-		}
-		projectLabels[i] = fmt.Sprintf("%s/%s", sourceName, p.Name)
-		if m.selectedProj != nil && p.ID == m.selectedProj.ID {
-			defaultProjectIndex = i
-		}
-	}
-
 	// 构建匹配类型选项
 	matchTypes := []string{MatchTypeParamPath, MatchTypeURLParam, MatchTypeRequestBody, MatchTypeRequestForm, MatchTypePlugin}
 	matchLabels := make([]string, len(matchTypes))
@@ -354,8 +359,38 @@ func (m *RouteRulesModel) showCreateForm() {
 		pluginLabels[i+1] = fmt.Sprintf("%s (%s)", p.Name, p.Version.String)
 	}
 
-	fields := []FormField{
-		NewIDSelectField("项目", "project_id", projectOptions, projectLabels, defaultProjectIndex),
+	// 判断是否有筛选的项目
+	hasSelectedProject := m.selectedProj != nil
+
+	// 表单标题
+	formTitle := "创建路由规则"
+	if hasSelectedProject {
+		formTitle = fmt.Sprintf("创建路由规则 [%s/%s]", m.contextSourceName, m.contextProjName)
+	}
+
+	fields := []FormField{}
+
+	// 如果没有筛选的项目，显示项目选择字段
+	if !hasSelectedProject {
+		// 构建项目选项（显示格式：来源/项目）
+		projectOptions := make([]string, len(m.projects))
+		projectLabels := make([]string, len(m.projects))
+		for i, p := range m.projects {
+			projectOptions[i] = p.ID
+			// 查找项目所属来源名称
+			sourceName := "未知来源"
+			for _, s := range m.sources {
+				if s.ID == p.SourceID {
+					sourceName = s.Name
+					break
+				}
+			}
+			projectLabels[i] = fmt.Sprintf("%s/%s", sourceName, p.Name)
+		}
+		fields = append(fields, NewIDSelectField("项目", "project_id", projectOptions, projectLabels, 0))
+	}
+
+	fields = append(fields,
 		&InputField{
 			Label:    "规则名称",
 			Key:      "name",
@@ -364,9 +399,9 @@ func (m *RouteRulesModel) showCreateForm() {
 		},
 		NewIDChoiceField("匹配类型", "match_type", matchTypes, matchLabels, 0),
 		&InputField{
-			Label:    "路径模式",
+			Label:    "路径模式(完整路径)",
 			Key:      "path_pattern",
-			Input:    newTextInput("例如: /callback/{id}"),
+			Input:    newTextInput("例如: /weixin/callback/{id}"),
 			Required: false,
 		},
 		NewTextAreaField("CEL表达式", "cel_expression", "例如: request.body.event == 'message'", false),
@@ -382,9 +417,9 @@ func (m *RouteRulesModel) showCreateForm() {
 			Key:   "priority",
 			Input: newTextInput("0"),
 		},
-	}
+	)
 
-	m.form = NewFormWithFields("创建路由规则", fields)
+	m.form = NewFormWithFields(formTitle, fields)
 
 	// 设置字段可见性规则
 	// path_pattern 仅在 param_path 类型时显示
@@ -476,7 +511,7 @@ func (m *RouteRulesModel) showEditForm() {
 		},
 		NewIDChoiceField("匹配类型", "match_type", matchTypes, matchLabels, selectedMatchIndex),
 		&InputField{
-			Label:    "路径模式",
+			Label:    "路径模式(完整路径)",
 			Key:      "path_pattern",
 			Input:    newTextInput(""),
 			Required: false,
@@ -513,7 +548,6 @@ func (m *RouteRulesModel) showEditForm() {
 	m.form.SetValue("name", m.selected.Name)
 	m.form.SetValue("path_pattern", m.selected.PathPattern.String)
 	m.form.SetValue("cel_expression", m.selected.CelExpression.String)
-	m.form.SetValue("target_url", m.selected.TargetUrl)
 	m.form.SetValue("priority", fmt.Sprintf("%d", m.selected.Priority.Int64))
 
 	// 设置表单尺寸
@@ -542,6 +576,12 @@ func (m *RouteRulesModel) saveRule() tea.Cmd {
 		priority := int64(0)
 		fmt.Sscanf(values["priority"], "%d", &priority)
 
+		// 获取项目ID：如果有筛选项目，使用筛选项目的ID；否则使用表单中的项目选择
+		projectID := values["project_id"]
+		if m.selectedProj != nil {
+			projectID = m.selectedProj.ID
+		}
+
 		if m.selected != nil {
 			// 更新现有规则
 			params := &db.UpdateRouteRuleParams{
@@ -550,8 +590,6 @@ func (m *RouteRulesModel) saveRule() tea.Cmd {
 				PathPattern:   sql.NullString{String: values["path_pattern"], Valid: values["path_pattern"] != ""},
 				CelExpression: sql.NullString{String: values["cel_expression"], Valid: values["cel_expression"] != ""},
 				PluginName:    sql.NullString{String: values["plugin_name"], Valid: values["plugin_name"] != ""},
-				TargetUrl:     values["target_url"],
-				Enabled:       m.selected.Enabled,
 				Priority:      sql.NullInt64{Int64: priority, Valid: true},
 				ID:            m.selected.ID,
 			}
@@ -564,14 +602,12 @@ func (m *RouteRulesModel) saveRule() tea.Cmd {
 			// 创建新规则
 			params := &db.CreateRouteRuleParams{
 				ID:            generateID(),
-				ProjectID:     values["project_id"],
+				ProjectID:     projectID,
 				Name:          values["name"],
 				MatchType:     values["match_type"],
 				PathPattern:   sql.NullString{String: values["path_pattern"], Valid: values["path_pattern"] != ""},
 				CelExpression: sql.NullString{String: values["cel_expression"], Valid: values["cel_expression"] != ""},
 				PluginName:    sql.NullString{String: values["plugin_name"], Valid: values["plugin_name"] != ""},
-				TargetUrl:     values["target_url"],
-				Enabled:       sql.NullInt64{Int64: 1, Valid: true},
 				Priority:      sql.NullInt64{Int64: priority, Valid: true},
 			}
 			_, err := queries.CreateRouteRule(context.Background(), params)
@@ -604,36 +640,6 @@ func (m *RouteRulesModel) deleteRule() tea.Cmd {
 	}
 }
 
-// toggleRule 切换路由规则启用状态
-func (m *RouteRulesModel) toggleRule(rule *db.RouteRule) tea.Cmd {
-	return func() tea.Msg {
-		newEnabled := int64(1)
-		if rule.Enabled.Int64 == 1 {
-			newEnabled = 0
-		}
-
-		params := &db.UpdateRouteRuleParams{
-			Name:          rule.Name,
-			MatchType:     rule.MatchType,
-			PathPattern:   rule.PathPattern,
-			CelExpression: rule.CelExpression,
-			PluginName:    rule.PluginName,
-			TargetUrl:     rule.TargetUrl,
-			Enabled:       sql.NullInt64{Int64: newEnabled, Valid: true},
-			Priority:      rule.Priority,
-			ID:            rule.ID,
-		}
-
-		queries := repository.New()
-		_, err := queries.UpdateRouteRule(context.Background(), params)
-		if err != nil {
-			return MsgError{Err: err}
-		}
-
-		return tea.Batch(m.loadRules(), SendSuccess("状态已切换"))()
-	}
-}
-
 // SetFilterProject 设置筛选的项目
 func (m *RouteRulesModel) SetFilterProject(project *db.Project) {
 	m.selectedProj = project
@@ -650,4 +656,17 @@ func (m *RouteRulesModel) GetSelectedRule() *db.RouteRule {
 // GetState 获取当前状态
 func (m *RouteRulesModel) GetState() AppState {
 	return m.state
+}
+
+// SetContextInfo 设置上下文信息（来源和项目名称）
+func (m *RouteRulesModel) SetContextInfo(sourceName, projectName string) {
+	m.contextSourceName = sourceName
+	m.contextProjName = projectName
+}
+
+// ClearContext 清除上下文信息
+func (m *RouteRulesModel) ClearContext() {
+	m.selectedProj = nil
+	m.contextSourceName = ""
+	m.contextProjName = ""
 }

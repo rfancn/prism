@@ -40,17 +40,14 @@ type ForwardOptions struct {
 
 // Forward 转发请求到目标服务器
 func (p *ProxyHandler) Forward(c *gin.Context, opts *ForwardOptions) error {
-	// 替换目标URL中的参数占位符
-	targetURL := replaceParams(opts.TargetURL, opts.Params)
-
 	// 解析目标URL
-	target, err := url.Parse(targetURL)
+	target, err := url.Parse(opts.TargetURL)
 	if err != nil {
 		return fmt.Errorf("invalid target URL: %w", err)
 	}
 
 	sdk.Logger().Debug("forwarding request",
-		"target", targetURL,
+		"target", opts.TargetURL,
 		"path", c.Request.URL.Path,
 		"params", opts.Params,
 	)
@@ -60,7 +57,7 @@ func (p *ProxyHandler) Forward(c *gin.Context, opts *ForwardOptions) error {
 		Director:    p.createDirector(target, c, opts),
 		Transport:   createTransport(p.targetTLS),
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			sdk.Logger().Error("proxy error", "err", err, "target", targetURL)
+			sdk.Logger().Error("proxy error", "err", err, "target", opts.TargetURL)
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(gin.H{"error": "bad gateway"})
 		},
@@ -128,19 +125,4 @@ func (p *ProxyHandler) createDirector(target *url.URL, c *gin.Context, opts *For
 			}
 		}
 	}
-}
-
-// replaceParams 替换URL中的参数占位符
-// 格式：{param_name}
-func replaceParams(template string, params map[string]string) string {
-	if params == nil {
-		return template
-	}
-
-	result := template
-	for key, value := range params {
-		placeholder := "{" + key + "}"
-		result = strings.ReplaceAll(result, placeholder, value)
-	}
-	return result
 }

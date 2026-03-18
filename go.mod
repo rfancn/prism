@@ -10,10 +10,11 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/cel-go v0.27.0
 	github.com/hashicorp/go-plugin v1.7.0
-	github.com/hdget/sdk v0.5.2
+	github.com/hdget/sdk v0.5.5
 	github.com/hdget/sdk/providers/db/sqlite3/sqlc v0.0.3
 	github.com/hdget/utils v0.2.3
 	github.com/hdget/utils/panic v0.0.1
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.48.0
@@ -56,7 +57,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/hdget/sdk/common v0.0.8 // indirect
-	github.com/hdget/sdk/providers/config/koanf v0.0.7 // indirect
+	github.com/hdget/sdk/providers/config/koanf v0.0.9 // indirect
 	github.com/hdget/sdk/providers/logger/zerolog v0.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -86,7 +87,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect

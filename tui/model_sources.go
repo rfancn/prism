@@ -110,20 +110,31 @@ func (m *SourcesModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = StateConfirm
 				}
 				return m, nil
-			case key.Matches(msg, m.keys.Toggle):
-				if len(m.sources) > 0 && m.list.Index() < len(m.sources) {
-					return m, m.toggleSource(m.sources[m.list.Index()])
-				}
 			}
 
 		case StateForm:
 			switch {
 			case key.Matches(msg, m.keys.Enter):
-				// 检查是否有展开的下拉框
-				if m.form != nil && m.form.HasExpandedSelect() {
+				// 检查是否有展开的下拉框或当前聚焦的是TextArea
+				if m.form != nil && (m.form.HasExpandedSelect() || m.form.IsTextAreaFocused()) {
 					break
 				}
-				return m, m.saveSource()
+				// 焦点不在按钮上时，不处理 Enter 键（让 Form.Update 处理导航）
+				if m.form != nil && !m.form.focusOnButtons {
+					break
+				}
+				// 检查是否点击取消按钮
+				if m.form != nil && m.form.IsCancelled() {
+					m.state = StateList
+					m.form = nil
+					m.selected = nil
+					return m, nil
+				}
+				// 焦点在确认按钮上才保存
+				if m.form != nil && m.form.IsConfirmed() {
+					return m, m.saveSource()
+				}
+				return m, nil
 			case key.Matches(msg, m.keys.Esc):
 				m.state = StateList
 				m.form = nil
@@ -168,11 +179,11 @@ func (m *SourcesModel) View() string {
 		if len(m.sources) == 0 {
 			return Header("来源列表") + "\n\n" +
 				EmptyListMessage("暂无来源，按 'n' 创建新来源") + "\n\n" +
-				Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+				Help("n 新建", "e 编辑", "d 删除")
 		}
 		items := m.list.Items()
 		return RenderSimpleList(items, m.list.Index(), m.height-3) +
-			"\n" + Help("n 新建", "e 编辑", "d 删除", "space 切换状态")
+			"\n" + Help("n 新建", "e 编辑", "d 删除")
 
 	case StateForm:
 		if m.form != nil {
@@ -254,7 +265,6 @@ func (m *SourcesModel) saveSource() tea.Cmd {
 			params := &db.UpdateSourceParams{
 				Name:        values["name"],
 				Description: sql.NullString{String: values["description"], Valid: values["description"] != ""},
-				Enabled:     m.selected.Enabled,
 				ID:          m.selected.ID,
 			}
 			_, err := queries.UpdateSource(context.Background(), params)
@@ -268,7 +278,6 @@ func (m *SourcesModel) saveSource() tea.Cmd {
 				ID:          generateID(),
 				Name:        values["name"],
 				Description: sql.NullString{String: values["description"], Valid: values["description"] != ""},
-				Enabled:     sql.NullInt64{Int64: 1, Valid: true},
 			}
 			_, err := queries.CreateSource(context.Background(), params)
 			if err != nil {
@@ -297,31 +306,6 @@ func (m *SourcesModel) deleteSource() tea.Cmd {
 
 		m.selected = nil
 		return tea.Batch(m.loadSources(), SendSuccess("来源已删除"))()
-	}
-}
-
-// toggleSource 切换来源启用状态
-func (m *SourcesModel) toggleSource(source *db.Source) tea.Cmd {
-	return func() tea.Msg {
-		newEnabled := int64(1)
-		if source.Enabled.Int64 == 1 {
-			newEnabled = 0
-		}
-
-		params := &db.UpdateSourceParams{
-			Name:        source.Name,
-			Description: source.Description,
-			Enabled:     sql.NullInt64{Int64: newEnabled, Valid: true},
-			ID:          source.ID,
-		}
-
-		queries := repository.New()
-		_, err := queries.UpdateSource(context.Background(), params)
-		if err != nil {
-			return MsgError{Err: err}
-		}
-
-		return tea.Batch(m.loadSources(), SendSuccess("状态已切换"))()
 	}
 }
 

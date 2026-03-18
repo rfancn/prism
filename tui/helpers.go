@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -29,11 +28,6 @@ func TabBar(tabs []string, activeIndex int) string {
 	divider := styleTabDivider.Render(strings.Repeat("─", actualWidth))
 
 	return tabsRow + "\n" + divider
-}
-
-// Title renders a title
-func Title(text string) string {
-	return styleTitle.Render(" " + text + " ")
 }
 
 // Header renders a header
@@ -72,14 +66,6 @@ func Box(title, content string, isError bool) string {
 	}
 	b.WriteString(content)
 	return style.Render(b.String())
-}
-
-// StatusBadge renders a status badge
-func StatusBadge(enabled bool) string {
-	if enabled {
-		return styleSuccess.Render("● 启用")
-	}
-	return styleError.Render("○ 禁用")
 }
 
 // Truncate truncates a string to max length
@@ -142,28 +128,4 @@ func parseTargetURL(urlStr string) (protocol, host, port string) {
 	}
 
 	return
-}
-
-// buildTargetURL 构建目标 URL
-// 输入: protocol="http", host="backend", port="8080"
-// 输出: "http://backend:8080"
-func buildTargetURL(protocol, host, port string) string {
-	// 处理默认端口，省略端口号
-	var portPart string
-	switch {
-	case protocol == "http" && port == "80":
-		portPart = ""
-	case protocol == "https" && port == "443":
-		portPart = ""
-	case port != "":
-		portPart = ":" + port
-	default:
-		portPart = ""
-	}
-
-	// 构建完整 URL
-	if portPart != "" {
-		return fmt.Sprintf("%s://%s%s", protocol, host, portPart)
-	}
-	return fmt.Sprintf("%s://%s", protocol, host)
 }

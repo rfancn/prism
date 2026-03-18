@@ -58,7 +58,7 @@ func TestFactoryCreate(t *testing.T) {
 		matchType string
 		wantNil   bool
 	}{
-		{MatchTypeParamPath, false},
+		{MatchTypePathParam, false},
 		{MatchTypeURLParam, false},
 		{MatchTypeRequestBody, false},
 		{MatchTypeRequestForm, false},
@@ -79,7 +79,7 @@ func TestIsValidMatchType(t *testing.T) {
 		matchType string
 		want      bool
 	}{
-		{MatchTypeParamPath, true},
+		{MatchTypePathParam, true},
 		{MatchTypeURLParam, true},
 		{MatchTypeRequestBody, true},
 		{MatchTypeRequestForm, true},
@@ -267,18 +267,18 @@ func TestParamPathMatcher_Match(t *testing.T) {
 	matcher := NewParamPathMatcher(celEngine)
 
 	tests := []struct {
-		name     string
-		path     string
-		rule     *db.RouteRule
+		name      string
+		path      string
+		rule      *db.RouteRule
 		wantMatch bool
 		wantErr   bool
 	}{
 		{
-			name: "nil rule",
-			path: "/users/123",
-			rule: nil,
+			name:      "nil rule",
+			path:      "/users/123",
+			rule:      nil,
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "empty path pattern",
@@ -287,7 +287,7 @@ func TestParamPathMatcher_Match(t *testing.T) {
 				PathPattern: sql.NullString{Valid: false},
 			},
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "path not match",
@@ -296,37 +296,37 @@ func TestParamPathMatcher_Match(t *testing.T) {
 				PathPattern: sql.NullString{String: "/products/{id}", Valid: true},
 			},
 			wantMatch: false,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name: "path match without CEL",
 			path: "/users/123",
 			rule: &db.RouteRule{
-				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
+				PathPattern:   sql.NullString{String: "/users/{id}", Valid: true},
 				CelExpression: sql.NullString{Valid: false},
 			},
 			wantMatch: true,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name: "path match with CEL true",
 			path: "/users/123",
 			rule: &db.RouteRule{
-				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
+				PathPattern:   sql.NullString{String: "/users/{id}", Valid: true},
 				CelExpression: sql.NullString{String: "true", Valid: true},
 			},
 			wantMatch: true,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name: "path match with CEL false",
 			path: "/users/123",
 			rule: &db.RouteRule{
-				PathPattern: sql.NullString{String: "/users/{id}", Valid: true},
+				PathPattern:   sql.NullString{String: "/users/{id}", Valid: true},
 				CelExpression: sql.NullString{String: "false", Valid: true},
 			},
 			wantMatch: false,
-			wantErr: false,
+			wantErr:   false,
 		},
 	}
 
@@ -359,11 +359,11 @@ func TestURLParamMatcher_Match(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "nil rule",
-			path: "/test?foo=bar",
-			rule: nil,
+			name:      "nil rule",
+			path:      "/test?foo=bar",
+			rule:      nil,
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "empty CEL expression",
@@ -372,7 +372,7 @@ func TestURLParamMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{Valid: false},
 			},
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "CEL expression true",
@@ -381,7 +381,7 @@ func TestURLParamMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "true", Valid: true},
 			},
 			wantMatch: true,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name: "CEL expression false",
@@ -390,7 +390,7 @@ func TestURLParamMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "false", Valid: true},
 			},
 			wantMatch: false,
-			wantErr: false,
+			wantErr:   false,
 		},
 	}
 
@@ -423,11 +423,11 @@ func TestRequestBodyMatcher_Match(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "nil rule",
-			body: `{"name": "test"}`,
-			rule: nil,
+			name:      "nil rule",
+			body:      `{"name": "test"}`,
+			rule:      nil,
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "empty CEL expression",
@@ -436,7 +436,7 @@ func TestRequestBodyMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{Valid: false},
 			},
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name: "CEL expression true",
@@ -445,7 +445,7 @@ func TestRequestBodyMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "true", Valid: true},
 			},
 			wantMatch: true,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name: "CEL expression false",
@@ -454,7 +454,7 @@ func TestRequestBodyMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "false", Valid: true},
 			},
 			wantMatch: false,
-			wantErr: false,
+			wantErr:   false,
 		},
 	}
 
@@ -487,11 +487,11 @@ func TestRequestFormMatcher_Match(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:     "nil rule",
-			formData: "name=test&value=123",
-			rule:     nil,
+			name:      "nil rule",
+			formData:  "name=test&value=123",
+			rule:      nil,
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name:     "empty CEL expression",
@@ -500,7 +500,7 @@ func TestRequestFormMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{Valid: false},
 			},
 			wantMatch: false,
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name:     "CEL expression true",
@@ -509,7 +509,7 @@ func TestRequestFormMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "true", Valid: true},
 			},
 			wantMatch: true,
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
 			name:     "CEL expression false",
@@ -518,7 +518,7 @@ func TestRequestFormMatcher_Match(t *testing.T) {
 				CelExpression: sql.NullString{String: "false", Valid: true},
 			},
 			wantMatch: false,
-			wantErr: false,
+			wantErr:   false,
 		},
 	}
 
