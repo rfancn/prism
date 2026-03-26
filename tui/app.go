@@ -243,11 +243,11 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, a.keys.Quit):
 			return a, tea.Quit
 		case key.Matches(msg, a.keys.Tab):
-			a.switchTab(1)
+			return a, a.switchTab(1)
 		case key.Matches(msg, a.keys.Left):
-			a.switchTab(-1)
+			return a, a.switchTab(-1)
 		case key.Matches(msg, a.keys.Right):
-			a.switchTab(1)
+			return a, a.switchTab(1)
 		default:
 			// 其他按键交给 globalConfigModel 处理
 			model, cmd := a.globalConfigModel.Update(msg)
@@ -256,7 +256,6 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return a, cmd
 		}
-		return a, nil
 	}
 
 	// 如果在路由规则 tab，将按键传递给 routeRulesModel 处理
@@ -265,11 +264,11 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, a.keys.Quit):
 			return a, tea.Quit
 		case key.Matches(msg, a.keys.Tab):
-			a.switchTab(1)
+			return a, a.switchTab(1)
 		case key.Matches(msg, a.keys.Left):
-			a.switchTab(-1)
+			return a, a.switchTab(-1)
 		case key.Matches(msg, a.keys.Right):
-			a.switchTab(1)
+			return a, a.switchTab(1)
 		default:
 			// 其他按键交给 routeRulesModel 处理
 			model, cmd := a.routeRulesModel.Update(msg)
@@ -278,7 +277,6 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return a, cmd
 		}
-		return a, nil
 	}
 
 	switch {
@@ -286,13 +284,13 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 
 	case key.Matches(msg, a.keys.Tab):
-		a.switchTab(1)
+		return a, a.switchTab(1)
 
 	case key.Matches(msg, a.keys.Left):
-		a.switchTab(-1)
+		return a, a.switchTab(-1)
 
 	case key.Matches(msg, a.keys.Right):
-		a.switchTab(1)
+		return a, a.switchTab(1)
 
 	case key.Matches(msg, a.keys.Down):
 		a.moveDown()
@@ -320,7 +318,7 @@ func (a *App) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // switchTab 切换 tab，direction: 1 为下一个，-1 为上一个
-func (a *App) switchTab(direction int) {
+func (a *App) switchTab(direction int) tea.Cmd {
 	newTab := int(a.currentTab) + direction
 	if newTab < 0 {
 		newTab = 3
@@ -336,6 +334,11 @@ func (a *App) switchTab(direction int) {
 	if a.currentTab == TabRouteRules {
 		a.routeRulesModel.Update(MsgRefresh{})
 	}
+	// 切换到项目 tab 时，加载当前选中来源的项目
+	if a.currentTab == TabProjects && len(a.sources) > 0 && a.selectedSourceIndex < len(a.sources) {
+		return a.loadProjects(a.sources[a.selectedSourceIndex].ID)
+	}
+	return nil
 }
 
 // handleEnter 处理 Enter 键
@@ -489,11 +492,7 @@ func (a *App) showCreateForm() tea.Cmd {
 		sourceLabels := make([]string, len(a.sources))
 		for i, s := range a.sources {
 			sourceOptions[i] = s.ID
-			if s.Description.Valid && s.Description.String != "" {
-				sourceLabels[i] = fmt.Sprintf("%s (%s)", s.Name, Truncate(s.Description.String, 20))
-			} else {
-				sourceLabels[i] = s.Name
-			}
+			sourceLabels[i] = s.Name
 		}
 
 		a.form = NewFormWithFields("创建项目", []FormField{
@@ -586,11 +585,7 @@ func (a *App) showEditForm() tea.Cmd {
 		currentSourceIndex := 0
 		for i, s := range a.sources {
 			sourceOptions[i] = s.ID
-			if s.Description.Valid && s.Description.String != "" {
-				sourceLabels[i] = fmt.Sprintf("%s (%s)", s.Name, Truncate(s.Description.String, 20))
-			} else {
-				sourceLabels[i] = s.Name
-			}
+			sourceLabels[i] = s.Name
 			if s.ID == project.SourceID {
 				currentSourceIndex = i
 			}
@@ -877,10 +872,21 @@ func (a *App) deleteItemAction() tea.Cmd {
 // View 渲染应用
 func (a *App) View() string {
 	if a.state == StateForm && a.form != nil {
-		return a.form.View()
+		var b strings.Builder
+		// 渲染 TabBar
+		b.WriteString(TabBar(tabNames, int(a.currentTab)))
+		b.WriteString("\n\n")
+		// 渲染表单
+		b.WriteString(a.form.View())
+		return b.String()
 	}
 
 	if a.state == StateConfirm && a.deleteItem != nil {
+		var b strings.Builder
+		// 渲染 TabBar
+		b.WriteString(TabBar(tabNames, int(a.currentTab)))
+		b.WriteString("\n\n")
+		// 渲染确认框
 		var name string
 		var itemType string
 		switch item := a.deleteItem.(type) {
@@ -894,10 +900,13 @@ func (a *App) View() string {
 			name = item.Name
 			itemType = "路由规则"
 		}
-		return Box("确认删除",
+		b.WriteString(Box("确认删除",
 			fmt.Sprintf("确定要删除%s '%s' 吗？", itemType, name),
 			true,
-		) + "\n\n" + Help("Enter 确认删除", "Esc 取消")
+		))
+		b.WriteString("\n\n")
+		b.WriteString(Help("Enter 确认删除", "Esc 取消"))
+		return b.String()
 	}
 
 	return a.renderTabView()

@@ -256,15 +256,17 @@ func (s *SelectField) View(focused bool) string {
 		currentText = s.Options[s.Selected]
 	}
 
+	// 渲染标签（独立一行，与其他字段布局一致）
+	if focused {
+		b.WriteString(styleFieldLabelFocused.Render(s.Label))
+	} else {
+		b.WriteString(styleFieldLabel.Render(s.Label))
+	}
+	b.WriteString(styleFieldRequired.Render("*"))
+	b.WriteString("\n")
+
 	if s.Expanded {
-		// 展开状态：标签和当前选项在同一行，下拉列表在下方
-		if focused {
-			b.WriteString(styleFieldLabelFocused.Render(s.Label))
-		} else {
-			b.WriteString(styleFieldLabel.Render(s.Label))
-		}
-		b.WriteString(styleFieldRequired.Render("*"))
-		b.WriteString(" ")
+		// 展开状态：当前选项和下拉列表
 		headerText := currentText + "▾"
 		b.WriteString(styleSelectExpandedHeader.Render(headerText))
 		b.WriteString("\n")
@@ -283,15 +285,7 @@ func (s *SelectField) View(focused bool) string {
 		}
 		b.WriteString(styleSelectDropdown.Render(optionsBuilder.String()))
 	} else {
-		// 收起状态：标签和下拉框在同一行
-		if focused {
-			b.WriteString(styleFieldLabelFocused.Render(s.Label))
-		} else {
-			b.WriteString(styleFieldLabel.Render(s.Label))
-		}
-		b.WriteString(styleFieldRequired.Render("*"))
-		b.WriteString(" ")
-
+		// 收起状态：下拉框按钮（与输入框布局一致）
 		btnText := currentText + " ▾"
 		if focused {
 			b.WriteString(styleSelectBoxFocus.Render(btnText))
@@ -856,115 +850,13 @@ func (f *Form) View() string {
 		f.focusIndex = 0
 	}
 
-	// 计算每个字段的实际高度
-	// 用于更精确的滚动计算
-	fieldHeights := make([]int, len(visible))
-	for i, field := range visible {
-		// 估算字段高度
-		baseHeight := 2 // 普通字段：1行内容 + 1行间距
-		switch field.(type) {
-		case *TextAreaField:
-			// TextArea: label行 + 多行输入区域
-			baseHeight = 1 + 3 // label行 + 默认3行TextArea
-		case *SelectField:
-			// SelectField 展开时需要更多行
-			if sf, ok := field.(*SelectField); ok && sf.Expanded {
-				baseHeight = 1 + len(sf.Options) + 1 // label行 + 选项列表 + 边距
-			}
-		case *IDSelectField:
-			// IDSelectField 展开时需要更多行
-			if isf, ok := field.(*IDSelectField); ok && isf.Expanded {
-				baseHeight = 1 + len(isf.Options) + 1
-			}
-		case *ChoiceFieldWrapper, *IDChoiceField:
-			// ChoiceField: label行 + 选项行(可能有换行)
-			baseHeight = 3 // label行 + 选项行 + 间距
-		}
-		fieldHeights[i] = baseHeight
-	}
-
-	// 标题和帮助行的固定高度
-	titleLines := 2           // 标题 + 空行
-	helpLines := 1            // 底部帮助
-	buttonLines := 3          // 按钮（1行） + 空行（2行）
-	scrollIndicatorLines := 2 // 滚动指示器（如果有）
-
-	// 计算可用高度
-	availableHeight := f.height - titleLines - helpLines - buttonLines
-	if availableHeight < 10 {
-		availableHeight = 10
-	}
-
-	// 计算显示窗口的起始和结束索引
-	startIdx := 0
-	endIdx := len(visible)
-
-	// 如果总高度超过可用高度，需要滚动
-	// 找到焦点字段，计算窗口位置
-	// 确保焦点字段在窗口中间位置
-	targetStart := f.focusIndex - 1
-	if targetStart < 0 {
-		targetStart = 0
-	}
-
-	// 计算从 targetStart 开始的高度
-	windowHeight := 0
-	windowEnd := targetStart
-	for j := targetStart; j < len(fieldHeights); j++ {
-		if windowHeight+fieldHeights[j]+scrollIndicatorLines > availableHeight {
-			break
-		}
-		windowHeight += fieldHeights[j]
-		windowEnd = j + 1
-	}
-
-	// 如果窗口末尾没有包含焦点字段，调整窗口
-	if windowEnd <= f.focusIndex {
-		// 从焦点字段开始计算
-		startIdx = f.focusIndex
-		windowHeight = 0
-		windowEnd = f.focusIndex
-		for j := f.focusIndex; j < len(fieldHeights); j++ {
-			if windowHeight+fieldHeights[j] > availableHeight {
-				break
-			}
-			windowHeight += fieldHeights[j]
-			windowEnd = j + 1
-		}
-		endIdx = windowEnd
-	} else {
-		startIdx = targetStart
-		endIdx = windowEnd
-	}
-
-	// 边界调整
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	if endIdx > len(visible) {
-		endIdx = len(visible)
-	}
-
 	// 渲染表单标题
 	b.WriteString(styleFormTitle.Render(f.title))
 	b.WriteString("\n\n")
 
-	// 渲染滚动指示器（如果有隐藏字段在上方）
-	if startIdx > 0 {
-		b.WriteString(styleHelp.Render("  ↑ 更多字段..."))
-		b.WriteString("\n\n")
-	}
-
-	// 渲染可见字段
-	for i := startIdx; i < endIdx; i++ {
-		field := visible[i]
+	// 渲染所有字段
+	for i, field := range visible {
 		b.WriteString(field.View(i == f.focusIndex))
-		b.WriteString("\n")
-	}
-
-	// 渲染滚动指示器（如果有隐藏字段在下方）
-	if endIdx < len(visible) {
-		b.WriteString(styleHelp.Render("  ↓ 更多字段..."))
 		b.WriteString("\n")
 	}
 
